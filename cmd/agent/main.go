@@ -29,6 +29,16 @@ func main() {
 				}
 				resp.Body.Close()
 			}
+			for _, m := range metrics.CounterMetrics {
+				url := fmt.Sprintf("/update/counter/%s/%d", m.Name, m.Value)
+				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
+				if err != nil {
+					fmt.Println(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+				}
+				resp.Body.Close()
+			}
 		}
 		time.Sleep(time.Second)
 		count++
