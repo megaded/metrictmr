@@ -28,9 +28,10 @@ func main() {
 					fmt.Println(err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					fmt.Println("Ошибка %s", url)
+					fmt.Println("Ошибка ", url)
 				}
-				fmt.Println("Успех %s", url)
+				fmt.Println("Успех ", url)
+				resp.Body.Close()
 			}
 		}
 		time.Sleep(time.Second)

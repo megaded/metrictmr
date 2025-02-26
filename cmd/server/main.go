@@ -61,7 +61,7 @@ func sendMetric(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /update/{type}/{name}/{value}", sendMetric)
-	err := http.ListenAndServe(`:8080`, mux)
+	err := http.ListenAndServe(`localhost:8080`, mux)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
