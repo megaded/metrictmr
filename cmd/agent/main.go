@@ -25,8 +25,6 @@ func main() {
 				if err != nil {
 					fmt.Println(err)
 				}
-				if resp.StatusCode != http.StatusOK {
-				}
 				resp.Body.Close()
 			}
 			for _, m := range metrics.CounterMetrics {
@@ -34,8 +32,6 @@ func main() {
 				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
 				if err != nil {
 					fmt.Println(err)
-				}
-				if resp.StatusCode != http.StatusOK {
 				}
 				resp.Body.Close()
 			}
