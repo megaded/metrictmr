@@ -26,7 +26,7 @@ func main() {
 			}
 			for _, m := range metrics.GaugeMetrics {
 				url := fmt.Sprintf("/update/gauge/%s/%f", m.Name, m.Value)
-				resp, err := client.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
+				resp, err := client.Post("http://localhost:8080"+url, "text/plain", nil)
 				func() {
 					if err != nil {
 						fmt.Println(err)
@@ -38,7 +38,7 @@ func main() {
 			}
 			for _, m := range metrics.CounterMetrics {
 				url := fmt.Sprintf("/update/counter/%s/%d", m.Name, m.Value)
-				resp, err := client.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
+				resp, err := client.Post("http://localhost:8080"+url, "text/plain", nil)
 				func() {
 					if err != nil {
 						fmt.Println(err)
