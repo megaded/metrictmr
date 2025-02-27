@@ -10,7 +10,7 @@ import (
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /update/{type}/{name}/{value}", handler.SendMetric)
-	err := http.ListenAndServe(":8080", mux)
+	err := http.ListenAndServe("localhost:8080", mux)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
