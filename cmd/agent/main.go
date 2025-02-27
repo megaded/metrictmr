@@ -19,9 +19,14 @@ func main() {
 			metrics = metricCollector.GetRunTimeMetrics()
 		}
 		if count%reportInterval == 0 {
+			client := &http.Client{
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					return http.ErrUseLastResponse
+				},
+			}
 			for _, m := range metrics.GaugeMetrics {
 				url := fmt.Sprintf("/update/gauge/%s/%f", m.Name, m.Value)
-				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
+				resp, err := client.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
 				func() {
 					if err != nil {
 						fmt.Println(err)
@@ -33,7 +38,7 @@ func main() {
 			}
 			for _, m := range metrics.CounterMetrics {
 				url := fmt.Sprintf("/update/counter/%s/%d", m.Name, m.Value)
-				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
+				resp, err := client.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
 				func() {
 					if err != nil {
 						fmt.Println(err)
