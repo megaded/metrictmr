@@ -22,18 +22,25 @@ func main() {
 			for _, m := range metrics.GaugeMetrics {
 				url := fmt.Sprintf("/update/gauge/%s/%f", m.Name, m.Value)
 				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
-				if err != nil {
-					fmt.Println(err)
-				}
-				resp.Body.Close()
+				func() {
+					if err != nil {
+						fmt.Println(err)
+						panic(err)
+					}
+					defer resp.Body.Close()
+				}()
+
 			}
 			for _, m := range metrics.CounterMetrics {
 				url := fmt.Sprintf("/update/counter/%s/%d", m.Name, m.Value)
 				resp, err := http.Post("http://localhost:8080"+url, "Content-Type: text/plain", nil)
-				if err != nil {
-					fmt.Println(err)
-				}
-				resp.Body.Close()
+				func() {
+					if err != nil {
+						fmt.Println(err)
+						panic(err)
+					}
+					defer resp.Body.Close()
+				}()
 			}
 		}
 		time.Sleep(time.Second)
