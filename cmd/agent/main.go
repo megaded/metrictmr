@@ -65,7 +65,6 @@ func sendCounterMetrics(metricName string, value int) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error to sending request:", err)
-		resp.Body.Close()
 		return
 	}
 
