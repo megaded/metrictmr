@@ -1,55 +1,132 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const (
 	gaugeType   = "gauge"
 	counterType = "counter"
+	typeParam   = "type"
+	nameParam   = "name"
 )
 
-type MemStorage struct {
+type Storager interface {
+	GetGauge(name string) (value float64, exist bool)
+	StoreGauge(name string, value float64)
+	GetCounter(name string) (value int64, exist bool)
+	StoreCounter(name string, value int64)
+	GetGaugeMetrics() map[string]float64
+	GetCounterMetrics() map[string]int64
 }
 
-func SendMetric(w http.ResponseWriter, r *http.Request) {
-	mName := r.PathValue("name")
-	fmt.Println("Имя" + mName)
-	if mName == "" {
-		fmt.Println("Name empty")
-		w.WriteHeader(http.StatusNotFound)
-		return
+func CreateRouter(s Storager) http.Handler {
+	router := chi.NewRouter()
+	storeHandler := getSaveHandler(s)
+	getHandler := getMetricHandler(s)
+	getListHandler := getMetricListHandler(s)
+	router.Post("/update/{type}/{name}/{value}", storeHandler)
+	router.Get("/value/{type}/{name}", getHandler)
+	router.Get("/", getListHandler)
+
+	return router
+}
+
+func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		b := new(bytes.Buffer)
+		gaugeMetrics := s.GetGaugeMetrics()
+		for key, value := range gaugeMetrics {
+			fmt.Fprintf(b, "Name %v=\"%f\"\n", key, value)
+		}
+		counterMetrics := s.GetCounterMetrics()
+		for key, value := range counterMetrics {
+			fmt.Fprintf(b, "Name %v=\"%d\"\n", key, value)
+		}
+		w.Write(b.Bytes())
+		w.WriteHeader(http.StatusOK)
 	}
-	mType := r.PathValue("type")
-	if mType != gaugeType && mType != counterType {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+}
+
+func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mType := chi.URLParam(r, typeParam)
+		fmt.Println(mType)
+		if mType != gaugeType && mType != counterType {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		mName := chi.URLParam(r, nameParam)
+		statusCode := http.StatusOK
+		switch mType {
+		case gaugeType:
+			value, ok := s.GetGauge(mName)
+			if ok {
+				w.Write([]byte(FloatFormat(value)))
+			} else {
+				statusCode = http.StatusNotFound
+			}
+		case counterType:
+			value, ok := s.GetCounter(mName)
+			if ok {
+				w.Write([]byte(fmt.Sprintf("%d", value)))
+			} else {
+				statusCode = http.StatusNotFound
+			}
+		}
+		w.WriteHeader(statusCode)
 	}
-	mValue := r.PathValue("value")
-	statusCode := http.StatusOK
-	switch mType {
-	case gaugeType:
-		fValue, error := strconv.ParseFloat(mValue, 64)
-		if error != nil {
-			statusCode = http.StatusBadRequest
-			break
+}
+
+func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mName := chi.URLParam(r, nameParam)
+		if mName == "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
-		if fValue <= 0 {
-			statusCode = http.StatusBadRequest
-			break
+		mType := chi.URLParam(r, typeParam)
+		if mType != gaugeType && mType != counterType {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
-	case counterType:
-		fValue, error := strconv.ParseInt(mValue, 10, 64)
-		if error != nil {
-			statusCode = http.StatusBadRequest
-			break
+		mValue := chi.URLParam(r, "value")
+		statusCode := http.StatusOK
+		switch mType {
+		case gaugeType:
+			fValue, error := strconv.ParseFloat(mValue, 64)
+			if error != nil {
+				statusCode = http.StatusBadRequest
+				break
+			}
+			if fValue <= 0 {
+				statusCode = http.StatusBadRequest
+				break
+			}
+			s.StoreGauge(mName, fValue)
+		case counterType:
+			fValue, error := strconv.ParseInt(mValue, 10, 64)
+			if error != nil {
+				statusCode = http.StatusBadRequest
+				break
+			}
+			if fValue <= 0 {
+				statusCode = http.StatusBadRequest
+				break
+			}
+			s.StoreCounter(mName, fValue)
 		}
-		if fValue <= 0 {
-			statusCode = http.StatusBadRequest
-			break
-		}
+
+		w.WriteHeader(statusCode)
 	}
-	w.WriteHeader(statusCode)
+}
+
+func FloatFormat(value float64) string {
+	return strings.TrimRight(fmt.Sprintf("%.3f", value), "0.")
 }

@@ -5,12 +5,13 @@ import (
 	"net/http"
 
 	"github.com/megaded/metrictmr/internal/server/handler"
+	"github.com/megaded/metrictmr/internal/server/handler/storage"
 )
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /update/{type}/{name}/{value}", handler.SendMetric)
-	err := http.ListenAndServe("localhost:8080", mux)
+	s := storage.NewStorage()
+	router := handler.CreateRouter(s)
+	err := http.ListenAndServe("localhost:8080", router)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
