@@ -13,7 +13,6 @@ func main() {
 	reportInterval := 10
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	host := "http://localhost:8080"
 	count := 0
 	for {
 		if count%pollInterval == 0 {
@@ -24,13 +23,7 @@ func main() {
 				sendGaugeMetrics(string(m.Name), m.Value)
 			}
 			for _, m := range metrics.CounterMetrics {
-				url := fmt.Sprintf("/update/counter/%s/%d", m.Name, m.Value)
-				fmt.Println(host + url)
-				resp, err := http.Post(host+url, "text/plain", http.NoBody)
-				if err != nil {
-					fmt.Println(err)
-				}
-				resp.Body.Close()
+				sendCounterMetrics(string(m.Name), int(m.Value))
 			}
 		}
 		time.Sleep(time.Second)
@@ -42,6 +35,7 @@ func sendGaugeMetrics(metricName string, value float64) {
 	url := fmt.Sprintf("http://localhost:8080/update/gauge/%s/%f", metricName, value)
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	req.Header.Set("Content-type", "text-plain")
+	req.Header.Set("Content-Length", "0")
 	if err != nil {
 		fmt.Println("Error of creating request:", err)
 		return
@@ -51,6 +45,27 @@ func sendGaugeMetrics(metricName string, value float64) {
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error to sending request:", err)
+		return
+	}
+
+	defer resp.Body.Close()
+}
+
+func sendCounterMetrics(metricName string, value int) {
+	url := fmt.Sprintf("http://localhost:8080/update/counter/%s/%d", metricName, value)
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	req.Header.Set("Content-type", "text-plain")
+	req.Header.Set("Content-Length", "0")
+	if err != nil {
+		fmt.Println("Error of creating request:", err)
+		return
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error to sending request:", err)
+		resp.Body.Close()
 		return
 	}
 
