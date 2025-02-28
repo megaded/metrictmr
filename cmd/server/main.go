@@ -11,7 +11,7 @@ import (
 func main() {
 	s := storage.NewStorage()
 	router := handler.CreateRouter(s)
-	err := http.ListenAndServe("localhost:8080", router)
+	err := http.ListenAndServe(":8080", router)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
