@@ -7,7 +7,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+type MockStorage struct {
+	mock.Mock
+}
+
+func (s *MockStorage) GetGauge(name string) (value float64, exist bool) {
+	return 1, true
+}
+
+func (s *MockStorage) StoreGauge(name string, value float64) {
+
+}
+
+func (s *MockStorage) GetCounter(name string) (value int64, exist bool) {
+	return 1, true
+}
+
+func (s *MockStorage) StoreCounter(name string, value int64) {
+
+}
+
+func (s *MockStorage) GetGaugeMetrics() map[string]float64 {
+	return map[string]float64{"1": 1.1}
+
+}
+
+func (s *MockStorage) GetCounterMetrics() map[string]int64 {
+	return map[string]int64{"test": 1}
+}
 
 func TestSendMetric(t *testing.T) {
 	tests := []struct {
@@ -24,8 +54,7 @@ func TestSendMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := http.NewServeMux()
-			router.HandleFunc("POST /update/{type}/{name}/{value}", SendMetric)
+			router := CreateRouter(&MockStorage{})
 			ts := httptest.NewServer(router)
 			defer ts.Close()
 			client := ts.Client()
