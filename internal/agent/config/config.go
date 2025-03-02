@@ -2,6 +2,8 @@ package config
 
 import (
 	"flag"
+
+	"github.com/caarlos0/env"
 )
 
 const (
@@ -11,28 +13,43 @@ const (
 )
 
 type Config struct {
-	Address        string
-	ReportInterval int64
-	PollInterval   int64
+	Address        *string `env:"HOME"`
+	ReportInterval *int64  `env:"HOME"`
+	PollInterval   *int64  `env:"HOME"`
 }
 
 func (c *Config) GetAddress() string {
-	return c.Address
+	return *c.Address
 }
 
 func (c *Config) GetReportInterval() int64 {
-	return c.ReportInterval
+	return *c.ReportInterval
 }
 
 func (c *Config) GetPoolInterval() int64 {
-	return c.PollInterval
+	return *c.PollInterval
 }
 
 func GetConfig() *Config {
 	config := &Config{}
-	flag.StringVar(&config.Address, "a", defaultAddr, "server endpoint")
-	flag.Int64Var(&config.ReportInterval, "r", reportInterval, "reportInterval")
-	flag.Int64Var(&config.PollInterval, "p", reportInterval, "pollInterval")
-	flag.Parse()
+	setEnvParam(config)
+	setCmdParam(config)
 	return config
+}
+
+func setEnvParam(c *Config) {
+	env.Parse(c)
+}
+
+func setCmdParam(c *Config) {
+	if c.Address == nil || *c.Address == "" {
+		flag.StringVar(c.Address, "a", defaultAddr, "server endpoint")
+	}
+	if c.ReportInterval == nil || *c.PollInterval == 0 {
+		flag.Int64Var(c.ReportInterval, "r", reportInterval, "reportInterval")
+	}
+	if c.PollInterval == nil || *c.PollInterval == 0 {
+		flag.Int64Var(c.PollInterval, "p", reportInterval, "pollInterval")
+	}
+	flag.Parse()
 }

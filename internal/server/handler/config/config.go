@@ -1,6 +1,10 @@
 package config
 
-import "flag"
+import (
+	"flag"
+
+	"github.com/caarlos0/env"
+)
 
 const (
 	defaultAddr = "localhost:8080"
@@ -16,7 +20,18 @@ func (c *Config) GetAddress() string {
 
 func GetConfig() *Config {
 	config := &Config{}
-	config.Address = flag.String("a", defaultAddr, "server endpoint")
-	flag.Parse()
+	setEnvParam(config)
+	setCmdParam(config)
 	return config
+}
+
+func setEnvParam(c *Config) {
+	env.Parse(c)
+}
+
+func setCmdParam(c *Config) {
+	if c.Address == nil || *c.Address == "" {
+		flag.StringVar(c.Address, "a", defaultAddr, "server endpoint")
+	}
+	flag.Parse()
 }
