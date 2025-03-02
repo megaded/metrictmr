@@ -11,11 +11,11 @@ const (
 )
 
 type Config struct {
-	Address *string `env:"ADDRESS"`
+	Address string `env:"ADDRESS"`
 }
 
 func (c *Config) GetAddress() string {
-	return *c.Address
+	return c.Address
 }
 
 func GetConfig() *Config {
@@ -30,10 +30,8 @@ func setEnvParam(c *Config) {
 }
 
 func setCmdParam(c *Config) {
-	if c.Address == nil {
-		var addr string
-		c.Address = &addr
-		flag.StringVar(c.Address, "a", defaultAddr, "server endpoint")
+	if c.Address == "" {
+		flag.StringVar(&c.Address, "a", defaultAddr, "server endpoint")
 	}
 	flag.Parse()
 }
