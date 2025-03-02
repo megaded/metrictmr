@@ -54,7 +54,7 @@ func setCmdParam(c *Config) {
 	}
 	if c.PollInterval == nil || *c.PollInterval == 0 {
 		var interval int64
-		c.ReportInterval = &interval
+		c.PollInterval = &interval
 		flag.Int64Var(c.PollInterval, "p", reportInterval, "pollInterval")
 	}
 	flag.Parse()
