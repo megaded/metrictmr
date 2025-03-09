@@ -49,38 +49,34 @@ func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 		for key, value := range counterMetrics {
 			fmt.Fprintf(b, "Name %v=\"%d\"\n", key, value)
 		}
-		w.Write(b.Bytes())
 		w.WriteHeader(http.StatusOK)
+		w.Write(b.Bytes())
 	}
 }
 
 func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mType := chi.URLParam(r, typeParam)
-		fmt.Println(mType)
 		if mType != gaugeType && mType != counterType {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		mName := chi.URLParam(r, nameParam)
-		statusCode := http.StatusOK
 		switch mType {
 		case gaugeType:
 			value, ok := s.GetGauge(mName)
 			if ok {
 				w.Write([]byte(FloatFormat(value)))
-			} else {
-				statusCode = http.StatusNotFound
+				return
 			}
 		case counterType:
 			value, ok := s.GetCounter(mName)
 			if ok {
 				w.Write([]byte(fmt.Sprintf("%d", value)))
-			} else {
-				statusCode = http.StatusNotFound
+				return
 			}
 		}
-		w.WriteHeader(statusCode)
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 

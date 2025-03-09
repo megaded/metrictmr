@@ -3,10 +3,16 @@ package agent
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/agent/collector"
 	"github.com/megaded/metrictmr/internal/agent/config"
+)
+
+const (
+	gauge   = "gauge"
+	counter = "counter"
 )
 
 type Configer interface {
@@ -29,7 +35,7 @@ func (a *Agent) StarSend() {
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	client := &http.Client{}
+	client := &http.Client{Timeout: time.Microsecond * 100}
 	var count int64 = 0
 	for {
 		if (count % pollInterval) == 0 {
@@ -37,10 +43,10 @@ func (a *Agent) StarSend() {
 		}
 		if count%reportInterval == 0 {
 			for _, m := range metrics.GaugeMetrics {
-				sendGaugeMetrics(client, addr, string(m.Name), m.Value)
+				sendMetric(client, addr, gauge, m.Name, strconv.FormatFloat(m.Value, 'f', 6, 64))
 			}
 			for _, m := range metrics.CounterMetrics {
-				sendCounterMetrics(client, addr, string(m.Name), int(m.Value))
+				sendMetric(client, addr, counter, m.Name, strconv.Itoa(int(m.Value)))
 			}
 		}
 		time.Sleep(time.Second)
@@ -54,37 +60,17 @@ func CreateAgent() MetricSender {
 	return a
 }
 
-func sendGaugeMetrics(client *http.Client, addr string, metricName string, value float64) {
-	url := fmt.Sprintf("%s/update/gauge/%s/%f", addr, metricName, value)
+func sendMetric(client *http.Client, addr string, metricType string, metricName collector.MetricName, value string) {
+	url := fmt.Sprintf("%s/update/%s/%s/%s", addr, metricType, metricName, value)
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	req.Header.Set("Content-type", "text-plain")
 	req.Header.Set("Content-Length", "0")
 	if err != nil {
-		fmt.Println("Error of creating request:", err)
 		return
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error to sending request:", err)
-		return
-	}
-
-	resp.Body.Close()
-}
-
-func sendCounterMetrics(client *http.Client, addr string, metricName string, value int) {
-	url := fmt.Sprintf("%s/update/counter/%s/%d", addr, metricName, value)
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-	req.Header.Set("Content-type", "text-plain")
-	req.Header.Set("Content-Length", "0")
-	if err != nil {
-		fmt.Println("Error of creating request:", err)
-		return
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error to sending request:", err)
 		return
 	}
 

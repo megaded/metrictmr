@@ -9,7 +9,7 @@ import (
 const (
 	defaultAddr    = "localhost:8080"
 	reportInterval = 10
-	pollInterval   = 10
+	pollInterval   = 2
 )
 
 type Config struct {
@@ -45,11 +45,11 @@ func setCmdParam(c *Config) {
 	if c.Address == "" {
 		flag.StringVar(&c.Address, "a", defaultAddr, "server endpoint")
 	}
-	if c.PollInterval == 0 {
+	if c.ReportInterval == 0 {
 		flag.Int64Var(&c.ReportInterval, "r", reportInterval, "reportInterval")
 	}
 	if c.PollInterval == 0 {
-		flag.Int64Var(&c.PollInterval, "p", reportInterval, "pollInterval")
+		flag.Int64Var(&c.PollInterval, "p", pollInterval, "pollInterval")
 	}
 	flag.Parse()
 }
