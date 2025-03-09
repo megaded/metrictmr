@@ -22,20 +22,20 @@ type Configer interface {
 }
 
 type MetricSender interface {
-	StarSend()
+	StartSend()
 }
 
 type Agent struct {
 	Config Configer
 }
 
-func (a *Agent) StarSend() {
+func (a *Agent) StartSend() {
 	pollInterval := a.Config.GetPoolInterval()
 	reportInterval := a.Config.GetReportInterval()
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	client := &http.Client{Timeout: time.Microsecond * 100}
+	client := &http.Client{Timeout: time.Second * 5}
 	var count int64 = 0
 	for {
 		if (count % pollInterval) == 0 {
@@ -74,5 +74,5 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 		return
 	}
 
-	resp.Body.Close()
+	defer resp.Body.Close()
 }
