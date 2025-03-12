@@ -1,0 +1,13 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\.github\\workflows",
+    "\\cmd",
+    "\\cmd\\agent",
+    "\\internal",
+    "\\internal\\server"
+  ],
+  "SelectedNode": "\\internal\\server\\server.go",
+  "PreviewInSolutionExplorer": false
+}

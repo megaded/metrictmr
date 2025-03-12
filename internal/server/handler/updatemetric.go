@@ -26,8 +26,11 @@ type Storager interface {
 	GetCounterMetrics() map[string]int64
 }
 
-func CreateRouter(s Storager) http.Handler {
+func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
+	for _, m := range middleWare {
+		router.Use(m)
+	}
 	storeHandler := getSaveHandler(s)
 	getHandler := getMetricHandler(s)
 	getListHandler := getMetricListHandler(s)
