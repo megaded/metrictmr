@@ -33,11 +33,21 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 	for _, m := range middleWare {
 		router.Use(m)
 	}
-	router.Get("/value/{type}/{name}", getMetricHandler(s))
-	router.Get("/", getMetricListHandler(s))
-	router.Post("/update/", getSaveJSONHandler(s))
-	router.Post("/value/", getMetricJSONHandler(s))
-	router.Post("/update/{type}/{name}/{value}", getSaveHandler(s))
+	router.Route("/update", func(r chi.Router) {
+		r.Post("/", getSaveJSONHandler(s))
+		r.Post("/{metricType}/{metricName}/{metricValue}", getMetricHandler(s))
+	})
+
+	router.Route("/value", func(r chi.Router) {
+		r.Post("/", getMetricJSONHandler(s))
+		r.Get("/{metricType}/{metricName}", getMetricHandler(s))
+	})
+
+	//router.Get("/value/{type}/{name}", getMetricHandler(s))
+	//router.Get("/", getMetricListHandler(s))
+	//router.Post("/update", getSaveJSONHandler(s))
+	//router.Post("/value", getMetricJSONHandler(s))
+	//.Post("/update/{type}/{name}/{value}", getSaveHandler(s))
 	return router
 }
 
