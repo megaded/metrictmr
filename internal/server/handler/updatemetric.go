@@ -35,8 +35,8 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 	}
 	router.Get("/value/{type}/{name}", getMetricHandler(s))
 	router.Get("/", getMetricListHandler(s))
-	router.Post("/update", getSaveJsonHandler(s))
-	router.Post("/value", getMetricJsonHandler(s))
+	router.Post("/update", getSaveJSONHandler(s))
+	router.Post("/value", getMetricJSONHandler(s))
 	router.Post("/update/{type}/{name}/{value}", getSaveHandler(s))
 	return router
 }
@@ -83,7 +83,7 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getMetricJsonHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metrics
 		err := json.NewDecoder(r.Body).Decode(&metric)
@@ -169,7 +169,7 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getSaveJsonHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metrics
 		err := json.NewDecoder(r.Body).Decode(&metric)
