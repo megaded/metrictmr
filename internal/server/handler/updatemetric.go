@@ -35,12 +35,12 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 	}
 	router.Route("/update", func(r chi.Router) {
 		r.Post("/", getSaveJSONHandler(s))
-		r.Post("/{metricType}/{metricName}/{metricValue}", getMetricHandler(s))
+		r.Post("/{type}/{name}/{value}", getMetricHandler(s))
 	})
 
 	router.Route("/value", func(r chi.Router) {
 		r.Post("/", getMetricJSONHandler(s))
-		r.Get("/{metricType}/{metricName}", getMetricHandler(s))
+		r.Get("/{type}/{name}", getMetricHandler(s))
 	})
 
 	//router.Get("/value/{type}/{name}", getMetricHandler(s))
