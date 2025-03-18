@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"time"
 
@@ -41,21 +43,26 @@ func Logger(h http.Handler) http.Handler {
 		lw := responseLogWriter{
 			ResponseWriter: w,
 		}
+		var requestBody []byte
+		if r.Body != nil {
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			requestBody = bodyBytes
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
 		h.ServeHTTP(&lw, r)
-
 		duration := time.Since(start)
+		logger.Log.Info("Request uri", zap.String("uri", r.RequestURI))
+		logger.Log.Info("Request method", zap.String("method", r.Method))
+		logger.Log.Info("Request duration", zap.Duration("duration", duration))
+		logger.Log.Info("Request body", zap.String("body", string(requestBody)))
+
 		lw.logResponse()
-		logRequest(r, duration)
 
 	}
 
 	return http.HandlerFunc(logFn)
-}
-
-func logRequest(r *http.Request, duration time.Duration) {
-	uri := r.RequestURI
-	method := r.Method
-	logger.Log.Info("Request uri", zap.String("uri", uri))
-	logger.Log.Info("Request method", zap.String("method", method))
-	logger.Log.Info("Request duration", zap.Duration("duration", duration))
 }
