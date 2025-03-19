@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"math/rand/v2"
 	"runtime"
 )
 
@@ -95,5 +96,6 @@ func GetGaugeMetrics(runTimeMetrics *runtime.MemStats) []GaugeMetric {
 		{Name: StackSys, Value: float64(runTimeMetrics.StackSys)},
 		{Name: Sys, Value: float64(runTimeMetrics.Sys)},
 		{Name: TotalAlloc, Value: float64(runTimeMetrics.TotalAlloc)},
+		{Name: RandomValue, Value: rand.Float64() * 1000},
 	}
 }
