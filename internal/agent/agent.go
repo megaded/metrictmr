@@ -48,7 +48,7 @@ func (a *Agent) StartSend() {
 				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: gauge, Value: &m.Value})
 			}
 			for _, m := range metrics.CounterMetrics {
-				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: gauge, Delta: &m.Value})
+				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: counter, Delta: &m.Value})
 			}
 		}
 		time.Sleep(time.Second)
