@@ -87,6 +87,7 @@ func sendMetricJSON(client *http.Client, addr string, metric data.Metrics) {
 	url := fmt.Sprintf("%s/update", addr)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	req.Header.Set("Content-type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {
 		return
 	}

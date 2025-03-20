@@ -31,7 +31,8 @@ func CreateServer() (s Listener) {
 	server := &Server{}
 	logger.SetupLogger("Info")
 	storage := storage.NewStorage()
-	server.Handler = handler.CreateRouter(storage, middleware.Logger)
+	gzipCompressor := &middleware.GZipCompressor{}
+	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GetCompressMiddleware(gzipCompressor))
 	server.config = config.GetConfig()
 	return server
 }
