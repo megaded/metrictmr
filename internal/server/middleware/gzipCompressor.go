@@ -8,34 +8,34 @@ import (
 )
 
 type GZipCompressor struct {
-	req *http.Request
-	wr  *http.ResponseWriter
+	http.ResponseWriter
+	http.Request
 }
 
-func (z GZipCompressor) SetCompressor(w *http.ResponseWriter, r *http.Request) {
+func (z GZipCompressor) GetCompressor(w http.ResponseWriter, r *http.Request) http.ResponseWriter {
 	ow := w
 	acceptEncoding := r.Header.Get("Accept-Encoding")
 	supportsGzip := strings.Contains(acceptEncoding, "gzip")
 	if supportsGzip {
-		cw := newCompressWriter(*w)
-		*ow = cw
+		cw := newCompressWriter(w)
+		ow = cw
 		defer cw.Close()
 	}
-	z.req = r
-	z.wr = ow
+	z.ResponseWriter = ow
+	z.Request = *r
+	return z.ResponseWriter
 }
 
 func (z GZipCompressor) Compress() {
-	contentEncoding := z.req.Header.Get("Content-Encoding")
+	contentEncoding := z.Request.Header.Get("Content-Encoding")
 	sendsGzip := strings.Contains(contentEncoding, "gzip")
 	if sendsGzip {
-		cr, err := newCompressReader(z.req.Body)
+		cr, err := newCompressReader(z.Request.Body)
 		if err != nil {
-			w := *z.wr
-			w.WriteHeader(http.StatusInternalServerError)
+			z.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		z.req.Body = cr
+		z.Request.Body = cr
 		defer cr.Close()
 	}
 }
