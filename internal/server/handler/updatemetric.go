@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler/data"
 )
@@ -32,6 +33,7 @@ type Storager interface {
 
 func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
+	router.Use(middleware.Compress(5, "application/json", "text/html"))
 	for _, m := range middleWare {
 		router.Use(m)
 	}

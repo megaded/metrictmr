@@ -12,7 +12,7 @@ type GZipCompressor struct {
 	http.Request
 }
 
-func (z GZipCompressor) GetCompressor(w http.ResponseWriter, r *http.Request) http.ResponseWriter {
+func (c GZipCompressor) GetCompressor(w http.ResponseWriter, r *http.Request) http.ResponseWriter {
 	ow := w
 	acceptEncoding := r.Header.Get("Accept-Encoding")
 	supportsGzip := strings.Contains(acceptEncoding, "gzip")
@@ -21,9 +21,9 @@ func (z GZipCompressor) GetCompressor(w http.ResponseWriter, r *http.Request) ht
 		ow = cw
 		defer cw.Close()
 	}
-	z.ResponseWriter = ow
-	z.Request = *r
-	return &z
+	c.ResponseWriter = ow
+	c.Request = *r
+	return &c
 }
 
 func (c *GZipCompressor) Header() http.Header {

@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"io"
 	"net/http"
 	"strings"
 )
@@ -42,7 +41,7 @@ func GzipMiddleware(h http.Handler) http.Handler {
 				return
 			}
 
-			r.Body = io.NopCloser(cr)
+			r.Body = cr
 		}
 
 		h.ServeHTTP(ow, r)

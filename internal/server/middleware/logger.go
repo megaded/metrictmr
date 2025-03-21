@@ -61,7 +61,7 @@ func Logger(h http.Handler) http.Handler {
 		logger.Log.Info("Request duration", zap.Duration("duration", duration))
 		logger.Log.Info("Request body", zap.String("body", string(requestBody)))
 		logger.Log.Info("Request Content-type", zap.String("content-type", r.Header.Get("Content-Type")))
-		logger.Log.Info("Request Content-Encoding", zap.String("content-type", r.Header.Get("Content-Encoding")))
+		logger.Log.Info("Request Content-Encoding", zap.String("Content-Encoding", r.Header.Get("Content-Encoding")))
 
 		lw.logResponse()
 
