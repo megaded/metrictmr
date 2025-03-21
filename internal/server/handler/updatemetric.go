@@ -45,11 +45,7 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 		r.Get("/{type}/{name}", getMetricHandler(s))
 	})
 
-	//router.Get("/value/{type}/{name}", getMetricHandler(s))
 	router.Get("/", getMetricListHandler(s))
-	//router.Post("/update", getSaveJSONHandler(s))
-	//router.Post("/value", getMetricJSONHandler(s))
-	//.Post("/update/{type}/{name}/{value}", getSaveHandler(s))
 	return router
 }
 
@@ -64,6 +60,7 @@ func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 		for key, value := range counterMetrics {
 			fmt.Fprintf(b, "Name %v=\"%d\"\n", key, value)
 		}
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b.Bytes())
 	}
@@ -91,6 +88,7 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
 	}
 }

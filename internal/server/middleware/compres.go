@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"io"
 	"net/http"
 	"strings"
 )
@@ -40,8 +41,8 @@ func GzipMiddleware(h http.Handler) http.Handler {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			// меняем тело запроса на новое
-			r.Body = cr
+
+			r.Body = io.NopCloser(cr)
 		}
 
 		h.ServeHTTP(ow, r)
