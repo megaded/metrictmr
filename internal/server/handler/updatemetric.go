@@ -2,12 +2,17 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/server/handler/data"
 )
 
 const (
@@ -26,15 +31,23 @@ type Storager interface {
 	GetCounterMetrics() map[string]int64
 }
 
-func CreateRouter(s Storager) http.Handler {
+func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
-	storeHandler := getSaveHandler(s)
-	getHandler := getMetricHandler(s)
-	getListHandler := getMetricListHandler(s)
-	router.Post("/update/{type}/{name}/{value}", storeHandler)
-	router.Get("/value/{type}/{name}", getHandler)
-	router.Get("/", getListHandler)
+	router.Use(middleware.Compress(5, "application/json", "text/html"))
+	for _, m := range middleWare {
+		router.Use(m)
+	}
+	router.Route("/update", func(r chi.Router) {
+		r.Post("/", getSaveJSONHandler(s))
+		r.Post("/{type}/{name}/{value}", getSaveHandler(s))
+	})
 
+	router.Route("/value", func(r chi.Router) {
+		r.Post("/", getMetricJSONHandler(s))
+		r.Get("/{type}/{name}", getMetricHandler(s))
+	})
+
+	router.Get("/", getMetricListHandler(s))
 	return router
 }
 
@@ -49,6 +62,7 @@ func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 		for key, value := range counterMetrics {
 			fmt.Fprintf(b, "Name %v=\"%d\"\n", key, value)
 		}
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b.Bytes())
 	}
@@ -76,7 +90,51 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var metric data.Metrics
+		err := json.NewDecoder(r.Body).Decode(&metric)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		var resp []byte
+		switch metric.MType {
+		case gaugeType:
+			value, ok := s.GetGauge(metric.ID)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			metric.Value = &value
+			resp, err = json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		case counterType:
+			value, ok := s.GetCounter(metric.ID)
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			metric.Delta = &value
+			resp, err = json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(resp)
 	}
 }
 
@@ -120,6 +178,56 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(statusCode)
+	}
+}
+
+func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var metric data.Metrics
+		err := json.NewDecoder(r.Body).Decode(&metric)
+		if err != nil {
+			bodyBytes, err := io.ReadAll(r.Body)
+			logger.Log.Info(string(bodyBytes))
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Info(err.Error())
+			w.Write([]byte(err.Error()))
+			return
+		}
+		var resp []byte
+		switch metric.MType {
+		case gaugeType:
+			if metric.Value == nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			s.StoreGauge(metric.ID, *metric.Value)
+			value, _ := s.GetGauge(metric.ID)
+			metric.Value = &value
+			resp, err = json.Marshal(metric)
+			if err != nil {
+				logger.Log.Info(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		case counterType:
+			if metric.Delta == nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			s.StoreCounter(metric.ID, *metric.Delta)
+			value, _ := s.GetCounter(metric.ID)
+			metric.Delta = &value
+			resp, err = json.Marshal(metric)
+			if err != nil {
+				logger.Log.Info(err.Error())
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(resp)
 	}
 }
 

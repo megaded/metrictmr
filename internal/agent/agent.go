@@ -1,13 +1,17 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/agent/collector"
 	"github.com/megaded/metrictmr/internal/agent/config"
+	"github.com/megaded/metrictmr/internal/agent/data"
+	"github.com/megaded/metrictmr/internal/logger"
 )
 
 const (
@@ -43,10 +47,10 @@ func (a *Agent) StartSend() {
 		}
 		if count%reportInterval == 0 {
 			for _, m := range metrics.GaugeMetrics {
-				sendMetric(client, addr, gauge, m.Name, strconv.FormatFloat(m.Value, 'f', 6, 64))
+				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: gauge, Value: &m.Value})
 			}
 			for _, m := range metrics.CounterMetrics {
-				sendMetric(client, addr, counter, m.Name, strconv.Itoa(int(m.Value)))
+				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: counter, Delta: &m.Value})
 			}
 		}
 		time.Sleep(time.Second)
@@ -71,6 +75,39 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 
 	resp, err := client.Do(req)
 	if err != nil {
+		return
+	}
+
+	defer resp.Body.Close()
+}
+
+func sendMetricJSON(client *http.Client, addr string, metric data.Metrics) {
+	data, err := json.Marshal(metric)
+	if err != nil {
+		return
+	}
+	url := fmt.Sprintf("%s/update", addr)
+	var buf bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buf)
+	_, err = gzipWriter.Write(data)
+
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
+	gzipWriter.Close()
+	req, err := http.NewRequest(http.MethodPost, url, &buf)
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Info(err.Error())
 		return
 	}
 
