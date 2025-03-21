@@ -47,6 +47,7 @@ func Logger(h http.Handler) http.Handler {
 		if r.Body != nil {
 			bodyBytes, err := io.ReadAll(r.Body)
 			if err != nil {
+				logger.Log.Info(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}

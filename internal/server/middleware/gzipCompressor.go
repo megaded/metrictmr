@@ -23,21 +23,22 @@ func (z GZipCompressor) GetCompressor(w http.ResponseWriter, r *http.Request) ht
 	}
 	z.ResponseWriter = ow
 	z.Request = *r
-	return z.ResponseWriter
+	return &z
 }
 
-func (z GZipCompressor) Compress() {
-	contentEncoding := z.Request.Header.Get("Content-Encoding")
-	sendsGzip := strings.Contains(contentEncoding, "gzip")
-	if sendsGzip {
-		cr, err := newCompressReader(z.Request.Body)
-		if err != nil {
-			z.ResponseWriter.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		z.Request.Body = cr
-		defer cr.Close()
+func (c *GZipCompressor) Header() http.Header {
+	return c.ResponseWriter.Header()
+}
+
+func (c *GZipCompressor) Write(p []byte) (int, error) {
+	return c.ResponseWriter.Write(p)
+}
+
+func (c *GZipCompressor) WriteHeader(statusCode int) {
+	if statusCode < 300 {
+		c.ResponseWriter.Header().Set("Content-Encoding", "gzip")
 	}
+	c.ResponseWriter.WriteHeader(statusCode)
 }
 
 type compressWriter struct {

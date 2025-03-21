@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler/data"
 )
 
@@ -184,7 +186,10 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 		var metric data.Metrics
 		err := json.NewDecoder(r.Body).Decode(&metric)
 		if err != nil {
+			bodyBytes, err := io.ReadAll(r.Body)
+			logger.Log.Info(string(bodyBytes))
 			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Info(err.Error())
 			w.Write([]byte(err.Error()))
 			return
 		}
@@ -200,6 +205,7 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 			metric.Value = &value
 			resp, err = json.Marshal(metric)
 			if err != nil {
+				logger.Log.Info(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -213,6 +219,7 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 			metric.Delta = &value
 			resp, err = json.Marshal(metric)
 			if err != nil {
+				logger.Log.Info(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
