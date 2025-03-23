@@ -19,15 +19,13 @@ func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	return data.Metric{}, true
 }
 
-func (s *MockStorage) StoreGauge(metric data.Metric) {
+func (s *MockStorage) Store(metric data.Metric) {
 
 }
 func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool) {
 	return data.Metric{}, true
 }
-func (s *MockStorage) StoreCounter(metric data.Metric) {
 
-}
 func (s *MockStorage) GetGaugeMetrics() []data.Metric {
 	return make([]data.Metric, 0)
 }

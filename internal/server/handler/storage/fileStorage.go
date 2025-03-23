@@ -19,8 +19,8 @@ type FileStorage struct {
 func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	return s.m.GetGauge(name)
 }
-func (s *FileStorage) StoreGauge(metric data.Metric) {
-	s.m.StoreGauge(metric)
+func (s *FileStorage) Store(metric data.Metric) {
+	s.m.Store(metric)
 	if s.internal == 0 {
 		s.persistData()
 	}
@@ -30,12 +30,6 @@ func (s *FileStorage) GetCounter(name string) (metric data.Metric, exist bool) {
 	return s.m.GetCounter(name)
 }
 
-func (s *FileStorage) StoreCounter(metric data.Metric) {
-	s.m.StoreCounter(metric)
-	if s.internal == 0 {
-		s.persistData()
-	}
-}
 func (s *FileStorage) GetGaugeMetrics() []data.Metric {
 	return s.m.GetGaugeMetrics()
 }
@@ -65,10 +59,10 @@ func restoreStorage(fp string) {
 
 }
 
-func (f *FileStorage) persistData() {
-	gaugeMetrics := f.m.GetGaugeMetrics()
+func (s *FileStorage) persistData() {
+	gaugeMetrics := s.m.GetGaugeMetrics()
 	logger.Log.Info("Метрик", zap.Int("len gauge", len(gaugeMetrics)))
-	counterMetrics := f.m.GetCounterMetrics()
+	counterMetrics := s.m.GetCounterMetrics()
 	logger.Log.Info("Метрик", zap.Int("len counter", len(counterMetrics)))
 	storeData := make([]data.Metric, 0)
 	if len(gaugeMetrics) != 0 {
@@ -86,7 +80,7 @@ func (f *FileStorage) persistData() {
 		logger.Log.Info(err.Error())
 		return
 	}
-	file, err := os.Create(f.filePath)
+	file, err := os.Create(s.filePath)
 	if err != nil {
 		logger.Log.Info(err.Error())
 		return

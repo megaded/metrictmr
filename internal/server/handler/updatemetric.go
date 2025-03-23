@@ -24,9 +24,8 @@ const (
 
 type Storager interface {
 	GetGauge(name string) (metric data.Metric, exist bool)
-	StoreGauge(metric data.Metric)
+	Store(metric data.Metric)
 	GetCounter(name string) (metric data.Metric, exist bool)
-	StoreCounter(metric data.Metric)
 	GetGaugeMetrics() []data.Metric
 	GetCounterMetrics() []data.Metric
 }
@@ -163,7 +162,7 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			s.StoreGauge(data.Metric{ID: mName, Value: &fValue})
+			s.Store(data.Metric{ID: mName, MType: gaugeType, Value: &fValue})
 		case counterType:
 			fValue, error := strconv.ParseInt(mValue, 10, 64)
 			if error != nil {
@@ -174,7 +173,7 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			s.StoreCounter(data.Metric{ID: nameParam, Delta: &fValue})
+			s.Store(data.Metric{ID: mName, MType: counterType, Delta: &fValue})
 		}
 
 		w.WriteHeader(statusCode)
@@ -200,7 +199,7 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			s.StoreGauge(metric)
+			s.Store(metric)
 			storedMetric, _ := s.GetGauge(metric.ID)
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {
@@ -213,7 +212,7 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			s.StoreCounter(metric)
+			s.Store(metric)
 			storedMetric, _ := s.GetCounter(metric.ID)
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {

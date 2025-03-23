@@ -2,6 +2,8 @@ package storage
 
 import (
 	"github.com/megaded/metrictmr/internal/data"
+	"github.com/megaded/metrictmr/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -20,28 +22,24 @@ func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool)
 	return metric, exist
 }
 
-func (s *InMemoryStorage) StoreGauge(metric data.Metric) {
-	key := getKey(gauge, metric.ID)
-	s.Metrics[key] = metric
-	s.gaugeKey[key] = true
+func (s *InMemoryStorage) Store(metric data.Metric) {
+	logger.Log.Info("Type", zap.String("Mtype", metric.MType))
+	if metric.MType != gauge && metric.MType != counter {
+		return
+	}
+	key := getKey(metric.MType, metric.ID)
+	if metric.MType == gauge {
+		s.Metrics[key] = metric
+		s.gaugeKey[key] = true
+	} else {
+		s.storeCounter(metric)
+	}
+
 }
 
 func (s *InMemoryStorage) GetCounter(name string) (metric data.Metric, exist bool) {
 	metric, exist = s.Metrics[getKey(counter, name)]
 	return metric, exist
-}
-
-func (s *InMemoryStorage) StoreCounter(metric data.Metric) {
-	key := getKey(counter, metric.ID)
-	v, ok := s.Metrics[key]
-	if ok {
-		newValue := *v.Delta + *metric.Delta
-		v.Delta = &newValue
-		s.Metrics[key] = v
-	} else {
-		s.Metrics[key] = metric
-	}
-	s.counterKey[key] = true
 }
 
 func NewInMemoryStorage() InMemoryStorage {
@@ -69,6 +67,19 @@ func (s *InMemoryStorage) GetCounterMetrics() []data.Metric {
 
 	}
 	return result
+}
+
+func (s *InMemoryStorage) storeCounter(metric data.Metric) {
+	key := getKey(counter, metric.ID)
+	v, ok := s.Metrics[key]
+	if ok {
+		newValue := *v.Delta + *metric.Delta
+		v.Delta = &newValue
+		s.Metrics[key] = v
+	} else {
+		s.Metrics[key] = metric
+	}
+	s.counterKey[key] = true
 }
 
 func getKey(mType string, name string) string {
