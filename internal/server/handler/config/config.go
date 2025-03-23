@@ -10,7 +10,7 @@ const (
 	defaultAddr          = "localhost:8080"
 	defaultStoreInternal = 0
 	defaultFilePath      = "metric.txt"
-	defaultRestore       = false
+	defaultRestore       = true
 )
 
 type Config struct {
