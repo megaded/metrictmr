@@ -12,11 +12,11 @@ import (
 
 type Server struct {
 	Handler http.Handler
-	config  Configer
+	Address string
 }
 
 func (s *Server) Start() (err error) {
-	return http.ListenAndServe(s.config.GetAddress(), s.Handler)
+	return http.ListenAndServe(s.Address, s.Handler)
 }
 
 type Configer interface {
@@ -30,9 +30,12 @@ type Listener interface {
 func CreateServer() (s Listener) {
 	server := &Server{}
 	logger.SetupLogger("Info")
-	storage := storage.NewStorage()
+
 	//gzipCompressor := &middleware.GZipCompressor{}
+	serverConfig := config.GetConfig()
+	logger.Log.Info(serverConfig.FilePath)
+	storage := storage.NewFileStorage(*serverConfig.StoreInterval, serverConfig.FilePath, *serverConfig.Restore)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
-	server.config = config.GetConfig()
+	server.Address = serverConfig.Address
 	return server
 }

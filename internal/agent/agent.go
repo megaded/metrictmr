@@ -10,7 +10,7 @@ import (
 
 	"github.com/megaded/metrictmr/internal/agent/collector"
 	"github.com/megaded/metrictmr/internal/agent/config"
-	"github.com/megaded/metrictmr/internal/agent/data"
+	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
 )
 
@@ -47,10 +47,10 @@ func (a *Agent) StartSend() {
 		}
 		if count%reportInterval == 0 {
 			for _, m := range metrics.GaugeMetrics {
-				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: gauge, Value: &m.Value})
+				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
 			}
 			for _, m := range metrics.CounterMetrics {
-				sendMetricJSON(client, addr, data.Metrics{ID: string(m.Name), MType: counter, Delta: &m.Value})
+				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
 			}
 		}
 		time.Sleep(time.Second)
@@ -81,7 +81,7 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(client *http.Client, addr string, metric data.Metrics) {
+func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		return
@@ -95,7 +95,7 @@ func sendMetricJSON(client *http.Client, addr string, metric data.Metrics) {
 		logger.Log.Info(err.Error())
 		return
 	}
-	gzipWriter.Close()
+	defer gzipWriter.Close()
 	req, err := http.NewRequest(http.MethodPost, url, &buf)
 
 	req.Header.Set("Content-Type", "application/json")
