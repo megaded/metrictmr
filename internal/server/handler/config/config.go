@@ -17,7 +17,7 @@ type Config struct {
 	Address       string `env:"ADDRESS"`
 	StoreInterval *int   `env:"STORE_INTERVAL"`
 	FilePath      string `env:"FILE_STORAGE_PATH"`
-	Restore       *bool  `env:"RESTORE"`
+	Restore       *bool  `env:"RESTORE,init"`
 }
 
 func (c *Config) GetAddress() string {
