@@ -8,6 +8,7 @@ import (
 	"github.com/megaded/metrictmr/internal/server/handler/config"
 	"github.com/megaded/metrictmr/internal/server/handler/storage"
 	"github.com/megaded/metrictmr/internal/server/middleware"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -30,12 +31,18 @@ type Listener interface {
 func CreateServer() (s Listener) {
 	server := &Server{}
 	logger.SetupLogger("Info")
-
-	//gzipCompressor := &middleware.GZipCompressor{}
 	serverConfig := config.GetConfig()
-	logger.Log.Info(serverConfig.FilePath)
+	logConfig(*serverConfig)
 	storage := storage.NewFileStorage(*serverConfig.StoreInterval, serverConfig.FilePath, *serverConfig.Restore)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server
+}
+
+func logConfig(c config.Config) {
+	nConfig := "Config"
+	logger.Log.Info(nConfig, zap.String("add", c.Address))
+	logger.Log.Info(nConfig, zap.String("path", c.FilePath))
+	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
+	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
 }
