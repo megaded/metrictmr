@@ -14,6 +14,7 @@ type FileStorage struct {
 	m        InMemoryStorage
 	filePath string
 	internal int
+	restore  bool
 }
 
 func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool) {
@@ -38,7 +39,7 @@ func (s *FileStorage) GetCounterMetrics() []data.Metric {
 }
 
 func NewFileStorage(internal int, fp string, restore bool) *FileStorage {
-	fs := FileStorage{m: NewInMemoryStorage(), internal: internal, filePath: fp}
+	fs := FileStorage{m: NewInMemoryStorage(), internal: internal, filePath: fp, restore: restore}
 	if fs.internal != 0 {
 		go func() {
 
@@ -52,18 +53,34 @@ func NewFileStorage(internal int, fp string, restore bool) *FileStorage {
 			}
 		}()
 	}
+	if fs.restore {
+		fs.restoreStorage()
+	}
 	return &fs
 }
 
-func restoreStorage(fp string) {
+func (s FileStorage) restoreStorage() {
+	var metrics []data.Metric
+	data, err := os.ReadFile(s.filePath)
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
 
+	err = json.Unmarshal(data, &metrics)
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
+	logger.Log.Info("Restore metric", zap.Int("count", len(metrics)))
+	for _, m := range metrics {
+		s.Store(m)
+	}
 }
 
 func (s *FileStorage) persistData() {
 	gaugeMetrics := s.m.GetGaugeMetrics()
-	logger.Log.Info("Метрик", zap.Int("len gauge", len(gaugeMetrics)))
 	counterMetrics := s.m.GetCounterMetrics()
-	logger.Log.Info("Метрик", zap.Int("len counter", len(counterMetrics)))
 	storeData := make([]data.Metric, 0)
 	if len(gaugeMetrics) != 0 {
 		storeData = append(storeData, gaugeMetrics...)
@@ -74,7 +91,6 @@ func (s *FileStorage) persistData() {
 	if len(storeData) == 0 {
 		return
 	}
-	logger.Log.Info("Метрик", zap.Int("len", len(storeData)))
 	data, err := json.Marshal(storeData)
 	if err != nil {
 		logger.Log.Info(err.Error())

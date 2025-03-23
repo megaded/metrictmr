@@ -2,8 +2,6 @@ package storage
 
 import (
 	"github.com/megaded/metrictmr/internal/data"
-	"github.com/megaded/metrictmr/internal/logger"
-	"go.uber.org/zap"
 )
 
 const (
@@ -23,7 +21,6 @@ func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool)
 }
 
 func (s *InMemoryStorage) Store(metric data.Metric) {
-	logger.Log.Info("Type", zap.String("Mtype", metric.MType))
 	if metric.MType != gauge && metric.MType != counter {
 		return
 	}
