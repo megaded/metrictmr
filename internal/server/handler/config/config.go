@@ -25,6 +25,10 @@ func (c *Config) GetAddress() string {
 	return c.Address
 }
 
+func (c *Config) GetFilePath() (fp string, isDefault bool) {
+	return c.FilePath, c.FilePath == defaultFilePath
+}
+
 func GetConfig() *Config {
 	config := &Config{}
 	setEnvParam(config)

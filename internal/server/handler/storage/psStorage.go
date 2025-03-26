@@ -6,6 +6,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	migration "github.com/megaded/metrictmr/internal/server/db"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
 )
 
@@ -20,7 +21,21 @@ func NewPgStorage(cfg config.Config) *PgStorage {
 	if err != nil {
 		logger.Log.Info(err.Error())
 	}
+	ping := db.Ping()
+	if ping != nil {
+		logger.Log.Fatal(err.Error())
+	}
+	err = migrate(db)
+	if err != nil {
+		logger.Log.Fatal(err.Error())
+	}
+
 	return &PgStorage{fStorage: *NewFileStorage(cfg), dbConnString: cfg.DbConnString, db: db}
+}
+
+func migrate(db *sql.DB) error {
+	_, err := db.Exec(migration.CreateTable)
+	return err
 }
 
 func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool) {
@@ -42,8 +57,5 @@ func (s *PgStorage) GetCounterMetrics() []data.Metric {
 }
 func (s *PgStorage) HealthCheck() bool {
 	err := s.db.Ping()
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }

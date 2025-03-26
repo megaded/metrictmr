@@ -39,8 +39,8 @@ func (s *InMemoryStorage) GetCounter(name string) (metric data.Metric, exist boo
 	return metric, exist
 }
 
-func NewInMemoryStorage() InMemoryStorage {
-	return InMemoryStorage{Metrics: map[string]data.Metric{}, gaugeKey: map[string]bool{}, counterKey: map[string]bool{}}
+func NewInMemoryStorage() *InMemoryStorage {
+	return &InMemoryStorage{Metrics: map[string]data.Metric{}, gaugeKey: map[string]bool{}, counterKey: map[string]bool{}}
 }
 
 func (s *InMemoryStorage) GetGaugeMetrics() []data.Metric {

@@ -33,7 +33,7 @@ func CreateServer() (s Listener) {
 	logger.SetupLogger("Info")
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
-	storage := storage.NewPgStorage(*serverConfig)
+	storage := storage.CreateStorage(*serverConfig)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server

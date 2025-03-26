@@ -12,7 +12,7 @@ import (
 )
 
 type FileStorage struct {
-	m        InMemoryStorage
+	m        Storager
 	filePath string
 	internal int
 	restore  bool

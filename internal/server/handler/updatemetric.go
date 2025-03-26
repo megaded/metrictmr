@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/server/handler/storage"
 )
 
 const (
@@ -22,16 +23,7 @@ const (
 	nameParam   = "name"
 )
 
-type Storager interface {
-	GetGauge(name string) (metric data.Metric, exist bool)
-	Store(metric data.Metric)
-	GetCounter(name string) (metric data.Metric, exist bool)
-	GetGaugeMetrics() []data.Metric
-	GetCounterMetrics() []data.Metric
-	HealthCheck() bool
-}
-
-func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
+func CreateRouter(s storage.Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.Compress(5, "application/json", "text/html"))
 	for _, m := range middleWare {
@@ -55,7 +47,7 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 	return router
 }
 
-func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricListHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b := new(bytes.Buffer)
 		gaugeMetrics := s.GetGaugeMetrics()
@@ -73,7 +65,7 @@ func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func getPingDbHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getPingDbHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ping := s.HealthCheck()
 		if ping {
@@ -86,7 +78,7 @@ func getPingDbHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mType := chi.URLParam(r, typeParam)
 		if mType != gaugeType && mType != counterType {
@@ -113,7 +105,7 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
@@ -156,7 +148,7 @@ func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mName := chi.URLParam(r, nameParam)
 		if mName == "" {
@@ -199,7 +191,7 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getSaveJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
