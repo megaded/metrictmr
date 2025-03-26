@@ -6,8 +6,17 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
-	migration "github.com/megaded/metrictmr/internal/server/db"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
+)
+
+const (
+	CreateTable = `create table if not exists metrics(
+	id uuid primary key default gen_random_uuid() ,
+	name text,
+	type text,
+	delta int,
+	value double precision,
+	constraint metrics_name_type unique (name, type));`
 )
 
 type PgStorage struct {
@@ -34,7 +43,7 @@ func NewPgStorage(cfg config.Config) *PgStorage {
 }
 
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(migration.CreateTable)
+	_, err := db.Exec(CreateTable)
 	return err
 }
 
