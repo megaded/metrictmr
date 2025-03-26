@@ -7,6 +7,7 @@ import (
 
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/server/handler/config"
 	"go.uber.org/zap"
 )
 
@@ -37,15 +38,18 @@ func (s *FileStorage) GetGaugeMetrics() []data.Metric {
 func (s *FileStorage) GetCounterMetrics() []data.Metric {
 	return s.m.GetCounterMetrics()
 }
+func (s *FileStorage) HealthCheck() bool {
+	return true
+}
 
-func NewFileStorage(internal int, fp string, restore bool) *FileStorage {
-	fs := FileStorage{m: NewInMemoryStorage(), internal: internal, filePath: fp, restore: restore}
+func NewFileStorage(cfg config.Config) *FileStorage {
+	fs := FileStorage{m: NewInMemoryStorage(), internal: *cfg.StoreInterval, filePath: cfg.FilePath, restore: *cfg.Restore}
 	if fs.internal != 0 {
 		go func() {
 
 			count := 0
 			for {
-				if count%internal == 0 {
+				if count%*cfg.StoreInterval == 0 {
 					fs.persistData()
 				}
 				time.Sleep(time.Second)

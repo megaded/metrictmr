@@ -18,6 +18,7 @@ type Config struct {
 	StoreInterval *int   `env:"STORE_INTERVAL"`
 	FilePath      string `env:"FILE_STORAGE_PATH"`
 	Restore       *bool  `env:"RESTORE,init"`
+	DbConnString  string `env:"DATABASE_DSN"`
 }
 
 func (c *Config) GetAddress() string {
@@ -38,6 +39,9 @@ func setEnvParam(c *Config) {
 func setCmdParam(c *Config) {
 	if c.Address == "" {
 		flag.StringVar(&c.Address, "a", defaultAddr, "server endpoint")
+	}
+	if c.DbConnString == "" {
+		flag.StringVar(&c.DbConnString, "d", "", "db conn string")
 	}
 	if c.StoreInterval == nil {
 		internal := 0

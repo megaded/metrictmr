@@ -28,6 +28,7 @@ type Storager interface {
 	GetCounter(name string) (metric data.Metric, exist bool)
 	GetGaugeMetrics() []data.Metric
 	GetCounterMetrics() []data.Metric
+	HealthCheck() bool
 }
 
 func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
@@ -46,6 +47,10 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 		r.Get("/{type}/{name}", getMetricHandler(s))
 	})
 
+	router.Route("/ping", func(r chi.Router) {
+		r.Get("/", getPingDbHandler(s))
+	})
+
 	router.Get("/", getMetricListHandler(s))
 	return router
 }
@@ -61,10 +66,24 @@ func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 		for _, value := range counterMetrics {
 			fmt.Fprintf(b, "Name %v=\"%d\"\n", value.ID, *value.Delta)
 		}
+
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b.Bytes())
 	}
+}
+
+func getPingDbHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ping := s.HealthCheck()
+		if ping {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 }
 
 func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {

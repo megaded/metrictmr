@@ -33,7 +33,7 @@ func CreateServer() (s Listener) {
 	logger.SetupLogger("Info")
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
-	storage := storage.NewFileStorage(*serverConfig.StoreInterval, serverConfig.FilePath, *serverConfig.Restore)
+	storage := storage.NewPgStorage(*serverConfig)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server
@@ -45,4 +45,5 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.String("path", c.FilePath))
 	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
+	logger.Log.Info(nConfig, zap.String("db conn string", c.DbConnString))
 }

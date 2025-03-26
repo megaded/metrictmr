@@ -15,6 +15,10 @@ type MockStorage struct {
 	mock.Mock
 }
 
+func (s *MockStorage) HealthCheck() bool {
+	return true
+}
+
 func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	return data.Metric{}, true
 }

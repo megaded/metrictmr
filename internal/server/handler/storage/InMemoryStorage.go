@@ -66,6 +66,10 @@ func (s *InMemoryStorage) GetCounterMetrics() []data.Metric {
 	return result
 }
 
+func (s *InMemoryStorage) HealthCheck() bool {
+	return true
+}
+
 func (s *InMemoryStorage) storeCounter(metric data.Metric) {
 	key := getKey(counter, metric.ID)
 	v, ok := s.Metrics[key]
