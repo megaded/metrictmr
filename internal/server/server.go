@@ -45,5 +45,5 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.String("path", c.FilePath))
 	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
-	logger.Log.Info(nConfig, zap.String("db conn string", c.DbConnString))
+	logger.Log.Info(nConfig, zap.String("db conn string", c.DBConnString))
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
-	"go.uber.org/zap"
 )
 
 type FileStorage struct {
@@ -76,7 +75,6 @@ func (s FileStorage) restoreStorage() {
 		logger.Log.Info(err.Error())
 		return
 	}
-	logger.Log.Info("Restore metric", zap.Int("count", len(metrics)))
 	for _, m := range metrics {
 		s.Store(m)
 	}

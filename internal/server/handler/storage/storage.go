@@ -15,7 +15,7 @@ type Storager interface {
 }
 
 func CreateStorage(cfg config.Config) Storager {
-	if cfg.DbConnString != "" {
+	if cfg.DBConnString != "" {
 		return NewPgStorage(cfg)
 	}
 	_, isDefault := cfg.GetFilePath()

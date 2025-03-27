@@ -40,7 +40,7 @@ func CreateRouter(s storage.Storager, middleWare ...func(http.Handler) http.Hand
 	})
 
 	router.Route("/ping", func(r chi.Router) {
-		r.Get("/", getPingDbHandler(s))
+		r.Get("/", getPingDBHandler(s))
 	})
 
 	router.Get("/", getMetricListHandler(s))
@@ -65,7 +65,7 @@ func getMetricListHandler(s storage.Storager) func(w http.ResponseWriter, r *htt
 	}
 }
 
-func getPingDbHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
+func getPingDBHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ping := s.HealthCheck()
 		if ping {
@@ -73,7 +73,6 @@ func getPingDbHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Re
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 
 }
