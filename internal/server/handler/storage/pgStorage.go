@@ -90,8 +90,8 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	result.Value = &value.Float64
 	return result, true
 }
-func (s *PgStorage) Store(metric data.Metric) {
-	store(s.db, metric)
+func (s *PgStorage) Store(metric ...data.Metric) {
+	store(s.db, metric...)
 }
 
 func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool) {

@@ -7,7 +7,7 @@ import (
 
 type Storager interface {
 	GetGauge(name string) (metric data.Metric, exist bool)
-	Store(metric data.Metric)
+	Store(metric ...data.Metric)
 	GetCounter(name string) (metric data.Metric, exist bool)
 	GetGaugeMetrics() []data.Metric
 	GetCounterMetrics() []data.Metric

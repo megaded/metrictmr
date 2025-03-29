@@ -23,7 +23,7 @@ func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	return data.Metric{}, true
 }
 
-func (s *MockStorage) Store(metric data.Metric) {
+func (s *MockStorage) Store(metric ...data.Metric) {
 
 }
 func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool) {

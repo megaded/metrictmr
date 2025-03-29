@@ -20,7 +20,7 @@ type FileStorage struct {
 func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	return s.m.GetGauge(name)
 }
-func (s *FileStorage) Store(metric data.Metric) {
+func (s *FileStorage) Store(metric ...data.Metric) {
 	s.m.Store(metric)
 	if s.internal == 0 {
 		s.persistData()

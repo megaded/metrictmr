@@ -20,18 +20,16 @@ func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool)
 	return metric, exist
 }
 
-func (s *InMemoryStorage) Store(metric data.Metric) {
-	if metric.MType != gauge && metric.MType != counter {
-		return
+func (s *InMemoryStorage) Store(metric ...data.Metric) {
+	for _, v := range metric {
+		key := getKey(v.MType, v.ID)
+		if v.MType == gauge {
+			s.Metrics[key] = v
+			s.gaugeKey[key] = true
+		} else {
+			s.storeCounter(v)
+		}
 	}
-	key := getKey(metric.MType, metric.ID)
-	if metric.MType == gauge {
-		s.Metrics[key] = metric
-		s.gaugeKey[key] = true
-	} else {
-		s.storeCounter(metric)
-	}
-
 }
 
 func (s *InMemoryStorage) GetCounter(name string) (metric data.Metric, exist bool) {

@@ -43,6 +43,10 @@ func CreateRouter(s storage.Storager, middleWare ...func(http.Handler) http.Hand
 		r.Get("/", getPingDBHandler(s))
 	})
 
+	router.Route("/updates", func(r chi.Router) {
+		r.Get("/", getSaveBulkJSONHandler(s))
+	})
+
 	router.Get("/", getMetricListHandler(s))
 	return router
 }
@@ -235,6 +239,26 @@ func getSaveJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(resp)
+	}
+}
+
+func getSaveBulkJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var metric []data.Metric
+		err := json.NewDecoder(r.Body).Decode(&metric)
+		if err != nil {
+			bodyBytes, err := io.ReadAll(r.Body)
+			logger.Log.Info(string(bodyBytes))
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Info(err.Error())
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		s.Store(metric...)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
