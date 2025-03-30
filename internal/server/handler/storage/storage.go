@@ -1,49 +1,26 @@
 package storage
 
-type Storage struct {
-	Gauge   map[string]float64
-	Counter map[string]int64
+import (
+	"github.com/megaded/metrictmr/internal/data"
+	"github.com/megaded/metrictmr/internal/server/handler/config"
+)
+
+type Storager interface {
+	GetGauge(name string) (metric data.Metric, exist bool)
+	Store(metric ...data.Metric)
+	GetCounter(name string) (metric data.Metric, exist bool)
+	GetGaugeMetrics() []data.Metric
+	GetCounterMetrics() []data.Metric
+	HealthCheck() bool
 }
 
-func (s *Storage) GetGauge(name string) (value float64, exist bool) {
-	value, exist = s.Gauge[name]
-	return value, exist
-}
-
-func (s *Storage) StoreGauge(name string, value float64) {
-	s.Gauge[name] = value
-}
-
-func (s *Storage) GetCounter(name string) (value int64, exist bool) {
-	value, exist = s.Counter[name]
-	return value, exist
-}
-
-func (s *Storage) StoreCounter(name string, value int64) {
-	v, ok := s.Counter[name]
-	if ok {
-		s.Counter[name] = v + value
-	} else {
-		s.Counter[name] = value
+func CreateStorage(cfg config.Config) Storager {
+	if cfg.DBConnString != "" {
+		return NewPgStorage(cfg)
 	}
-}
-
-func NewStorage() *Storage {
-	return &Storage{Gauge: make(map[string]float64), Counter: map[string]int64{}}
-}
-
-func (s *Storage) GetGaugeMetrics() map[string]float64 {
-	result := make(map[string]float64)
-	for k, v := range s.Gauge {
-		result[k] = v
+	_, isDefault := cfg.GetFilePath()
+	if !isDefault {
+		return NewFileStorage(cfg)
 	}
-	return result
-}
-
-func (s *Storage) GetCounterMetrics() map[string]int64 {
-	result := make(map[string]int64)
-	for k, v := range s.Counter {
-		result[k] = v
-	}
-	return result
+	return NewInMemoryStorage()
 }
