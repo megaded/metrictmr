@@ -44,7 +44,7 @@ func CreateRouter(s storage.Storager, middleWare ...func(http.Handler) http.Hand
 	})
 
 	router.Route("/updates", func(r chi.Router) {
-		r.Get("/", getSaveBulkJSONHandler(s))
+		r.Post("/", getSaveBulkJSONHandler(s))
 	})
 
 	router.Get("/", getMetricListHandler(s))

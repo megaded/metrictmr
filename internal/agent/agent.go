@@ -46,12 +46,7 @@ func (a *Agent) StartSend() {
 			metrics = metricCollector.GetRunTimeMetrics()
 		}
 		if count%reportInterval == 0 {
-			for _, m := range metrics.GaugeMetrics {
-				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
-			}
-			for _, m := range metrics.CounterMetrics {
-				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
-			}
+			sendBulkMetric(metrics, addr, client)
 		}
 		time.Sleep(time.Second)
 		count++
@@ -62,6 +57,30 @@ func CreateAgent() MetricSender {
 	a := &Agent{}
 	a.Config = config.GetConfig()
 	return a
+}
+
+func sendBulkMetric(c collector.Metric, addr string, client *http.Client) {
+	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
+		return
+	}
+	d := make([]data.Metric, 0, len(c.GaugeMetrics)+len(c.CounterMetrics))
+	for _, v := range c.GaugeMetrics {
+		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeGauge, Value: &v.Value})
+	}
+	for _, v := range c.CounterMetrics {
+		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
+	}
+	sendMetricJSON(client, addr, d...)
+
+}
+
+func sendMetrics(c collector.Metric, addr string, client *http.Client) {
+	for _, m := range c.GaugeMetrics {
+		sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
+	}
+	for _, m := range c.CounterMetrics {
+		sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
+	}
 }
 
 func sendMetric(client *http.Client, addr string, metricType string, metricName collector.MetricName, value string) {
@@ -81,12 +100,17 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
+func sendMetricJSON(client *http.Client, addr string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		return
 	}
-	url := fmt.Sprintf("%s/update", addr)
+	method := "update"
+	if len(metric) > 1 {
+		method = "updates"
+	}
+
+	url := fmt.Sprintf("%s/%s", addr, method)
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
 	_, err = gzipWriter.Write(data)
