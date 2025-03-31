@@ -97,7 +97,10 @@ func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequest(http.MethodPost, url, &buf)
-
+	if err != nil {
+		logger.Log.Error(err.Error())
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {

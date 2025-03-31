@@ -33,7 +33,7 @@ func (r *responseLogWriter) WriteHeader(statusCode int) {
 
 func (r *responseLogWriter) logResponse() {
 	logger.Log.Info("Response status", zap.Int("status", r.data.status))
-	logger.Log.Info("Response size", zap.Int("size", r.data.status))
+	logger.Log.Info("Response size", zap.Int("size", r.data.size))
 }
 
 func Logger(h http.Handler) http.Handler {

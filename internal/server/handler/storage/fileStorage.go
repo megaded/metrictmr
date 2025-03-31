@@ -102,5 +102,12 @@ func (s *FileStorage) persistData() {
 		return
 	}
 	defer file.Close()
-	file.Write(data)
+	n, err := file.Write(data)
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
+	if n != len(data) {
+		return
+	}
 }
