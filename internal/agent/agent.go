@@ -103,10 +103,6 @@ func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	if err != nil {
-		logger.Log.Info(err.Error())
-		return
-	}
 
 	resp, err := client.Do(req)
 	if err != nil {
