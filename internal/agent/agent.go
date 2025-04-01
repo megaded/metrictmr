@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/megaded/metrictmr/internal/agent/config"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/retry"
 )
 
 const (
@@ -30,36 +32,56 @@ type MetricSender interface {
 }
 
 type Agent struct {
-	Config Configer
+	Config     Configer
+	httpClient *AgentHttpClient
+}
+
+type AgentHttpClient struct {
+	httpClient *http.Client
+	retry      retry.Retry
+}
+
+func (c *AgentHttpClient) Do(ctx context.Context, r *http.Request) {
+	action := func() (*http.Response, error) {
+		return c.httpClient.Do(r)
+	}
+	f := c.retry.RetryAgent(ctx, action)
+	f()
 }
 
 func (a *Agent) StartSend() {
+	ctx := context.Background()
 	pollInterval := a.Config.GetPoolInterval()
 	reportInterval := a.Config.GetReportInterval()
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	client := &http.Client{Timeout: time.Second * 5}
-	var count int64 = 0
+	pollTimer := time.NewTicker(time.Duration(pollInterval * int64(time.Second)))
+	reportTimer := time.NewTicker(time.Second * time.Duration(reportInterval))
 	for {
-		if (count % pollInterval) == 0 {
+
+		select {
+		case <-pollTimer.C:
+			logger.Log.Info("Poll metric")
 			metrics = metricCollector.GetRunTimeMetrics()
+
+		case <-reportTimer.C:
+			logger.Log.Info("Send metric")
+			sendBulkMetric(ctx, metrics, addr, a.httpClient)
+		case <-ctx.Done():
+			return
 		}
-		if count%reportInterval == 0 {
-			sendBulkMetric(metrics, addr, client)
-		}
-		time.Sleep(time.Second)
-		count++
 	}
 }
 
 func CreateAgent() MetricSender {
 	a := &Agent{}
 	a.Config = config.GetConfig()
+	a.httpClient = &AgentHttpClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
 	return a
 }
 
-func sendBulkMetric(c collector.Metric, addr string, client *http.Client) {
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client *AgentHttpClient) {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		return
 	}
@@ -70,16 +92,16 @@ func sendBulkMetric(c collector.Metric, addr string, client *http.Client) {
 	for _, v := range c.CounterMetrics {
 		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
 	}
-	sendMetricJSON(client, addr, d...)
+	sendMetricJSON(ctx, client, addr, d...)
 
 }
 
-func sendMetrics(c collector.Metric, addr string, client *http.Client) {
+func sendMetrics(ctx context.Context, c collector.Metric, addr string, client *AgentHttpClient) {
 	for _, m := range c.GaugeMetrics {
-		sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
+		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
 	}
 	for _, m := range c.CounterMetrics {
-		sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
+		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
 	}
 }
 
@@ -100,9 +122,10 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(client *http.Client, addr string, metric ...data.Metric) {
+func sendMetricJSON(ctx context.Context, client *AgentHttpClient, addr string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
+		logger.Log.Error(err.Error())
 		return
 	}
 	method := "update"
@@ -121,19 +144,11 @@ func sendMetricJSON(client *http.Client, addr string, metric ...data.Metric) {
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequest(http.MethodPost, url, &buf)
-
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	if err != nil {
-		logger.Log.Info(err.Error())
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		logger.Log.Info(err.Error())
-		return
-	}
-
-	defer resp.Body.Close()
+	client.Do(ctx, req)
 }
