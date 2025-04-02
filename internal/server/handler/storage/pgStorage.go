@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 
@@ -70,15 +69,11 @@ func store(db *sql.DB, retry retry.Retry, m ...data.Metric) error {
 		return err
 	}
 	for _, v := range m {
-		fn := retry.Retry(context.TODO(), func() error {
-			_, err = tx.Exec(Upsert, v.ID, v.MType, v.Delta, v.Value)
-			return err
-		})
-		err = fn()
-
+		_, err = tx.Exec(Upsert, v.ID, v.MType, v.Delta, v.Value)
 		if err != nil {
-			tx.Rollback()
 			logger.Log.Info(err.Error())
+			tx.Rollback()
+			return err
 		}
 	}
 	return tx.Commit()
