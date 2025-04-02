@@ -60,7 +60,13 @@ func getMetricListHandler(s storage.Storager) func(w http.ResponseWriter, r *htt
 			return
 		}
 		for _, value := range metrics {
-			fmt.Fprintf(b, "Name %v=\"%f\"\n", value.ID, *value.Value)
+			if value.MType == gaugeType {
+				fmt.Fprintf(b, "Name %v=\"%f\"\n", value.ID, *value.Value)
+			}
+			if value.MType == counterType {
+				fmt.Fprintf(b, "Name %v=\"%d\"\n", value.ID, *value.Delta)
+			}
+
 		}
 
 		w.Header().Set("Content-Type", "text/html")
