@@ -33,15 +33,15 @@ type MetricSender interface {
 
 type Agent struct {
 	Config     Configer
-	httpClient *AgentHttpClient
+	httpClient *AgentHTTPClient
 }
 
-type AgentHttpClient struct {
+type AgentHTTPClient struct {
 	httpClient *http.Client
 	retry      retry.Retry
 }
 
-func (c *AgentHttpClient) Do(ctx context.Context, r *http.Request) {
+func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) {
 	action := func() (*http.Response, error) {
 		return c.httpClient.Do(r)
 	}
@@ -77,11 +77,11 @@ func (a *Agent) StartSend() {
 func CreateAgent() MetricSender {
 	a := &Agent{}
 	a.Config = config.GetConfig()
-	a.httpClient = &AgentHttpClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
+	a.httpClient = &AgentHTTPClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
 	return a
 }
 
-func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client *AgentHttpClient) {
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		return
 	}
@@ -96,7 +96,7 @@ func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client
 
 }
 
-func sendMetrics(ctx context.Context, c collector.Metric, addr string, client *AgentHttpClient) {
+func sendMetrics(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
 	for _, m := range c.GaugeMetrics {
 		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
 	}
@@ -122,7 +122,7 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(ctx context.Context, client *AgentHttpClient, addr string, metric ...data.Metric) {
+func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error(err.Error())

@@ -35,13 +35,17 @@ func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, e
 				case <-ctx.Done():
 					return err
 				case <-t.C:
-					_, err = action()
-					delay = delay + r.step
-					t.Reset(delay)
-					countRetry++
-					if countRetry == r.maxRetry {
-						return err
+					resp, err = action()
+					if err != nil {
+						delay = delay + r.step
+						t.Reset(delay)
+						countRetry++
+						if countRetry == r.maxRetry {
+							return err
+						}
 					}
+					defer resp.Body.Close()
+					return nil
 				}
 			}
 		}

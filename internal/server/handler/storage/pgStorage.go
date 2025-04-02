@@ -118,8 +118,12 @@ func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err
 	err = row.Scan(&delta, &value)
 	if err != nil {
 		logger.Log.Info(err.Error())
+		if err == sql.ErrNoRows {
+			return result, false, nil
+		}
 		return result, false, err
 	}
+
 	result.Delta = &delta.Int64
 	return result, true, nil
 }
