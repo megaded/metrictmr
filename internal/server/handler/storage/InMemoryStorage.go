@@ -15,12 +15,12 @@ type InMemoryStorage struct {
 	counterKey map[string]bool
 }
 
-func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool) {
+func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool, err error) {
 	metric, exist = s.Metrics[getKey(gauge, name)]
-	return metric, exist
+	return metric, exist, nil
 }
 
-func (s *InMemoryStorage) Store(metric ...data.Metric) {
+func (s *InMemoryStorage) Store(metric ...data.Metric) error {
 	for _, v := range metric {
 		key := getKey(v.MType, v.ID)
 		if v.MType == gauge {
@@ -30,29 +30,19 @@ func (s *InMemoryStorage) Store(metric ...data.Metric) {
 			s.storeCounter(v)
 		}
 	}
+	return nil
 }
 
-func (s *InMemoryStorage) GetCounter(name string) (metric data.Metric, exist bool) {
+func (s *InMemoryStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
 	metric, exist = s.Metrics[getKey(counter, name)]
-	return metric, exist
+	return metric, exist, nil
 }
 
 func NewInMemoryStorage() *InMemoryStorage {
 	return &InMemoryStorage{Metrics: map[string]data.Metric{}, gaugeKey: map[string]bool{}, counterKey: map[string]bool{}}
 }
 
-func (s *InMemoryStorage) GetGaugeMetrics() []data.Metric {
-	result := make([]data.Metric, 0)
-	for k := range s.gaugeKey {
-		m, ok := s.Metrics[k]
-		if ok {
-			result = append(result, m)
-		}
-	}
-	return result
-}
-
-func (s *InMemoryStorage) GetCounterMetrics() []data.Metric {
+func (s *InMemoryStorage) GetMetrics() ([]data.Metric, error) {
 	result := make([]data.Metric, 0)
 	for k := range s.counterKey {
 		m, ok := s.Metrics[k]
@@ -61,7 +51,14 @@ func (s *InMemoryStorage) GetCounterMetrics() []data.Metric {
 		}
 
 	}
-	return result
+	for k := range s.gaugeKey {
+		m, ok := s.Metrics[k]
+		if ok {
+			result = append(result, m)
+		}
+
+	}
+	return result, nil
 }
 
 func (s *InMemoryStorage) HealthCheck() bool {

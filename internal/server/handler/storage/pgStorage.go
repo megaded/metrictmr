@@ -1,12 +1,14 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/retry"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
 )
 
@@ -26,12 +28,15 @@ where m.name = EXCLUDED.name and m.type = EXCLUDED.type;`
 	Select = `select m.delta, m.value
    from metrics m 
    where m."name" =$1 and m."type" = $2;`
+	SelectAll = `select m.name, m.type, m.delta, m.value, 
+   from metrics m;`
 )
 
 type PgStorage struct {
 	fStorage     FileStorage
 	dbConnString string
 	db           *sql.DB
+	retry        retry.Retry
 }
 
 func NewPgStorage(cfg config.Config) *PgStorage {
@@ -48,7 +53,7 @@ func NewPgStorage(cfg config.Config) *PgStorage {
 		logger.Log.Fatal(err.Error())
 	}
 
-	return &PgStorage{fStorage: *NewFileStorage(cfg), dbConnString: cfg.DBConnString, db: db}
+	return &PgStorage{fStorage: *NewFileStorage(cfg), dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
 }
 
 func migrate(db *sql.DB) error {
@@ -56,7 +61,7 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
-func store(db *sql.DB, m ...data.Metric) error {
+func store(db *sql.DB, retry retry.Retry, m ...data.Metric) error {
 	if len(m) == 0 {
 		return nil
 	}
@@ -65,12 +70,21 @@ func store(db *sql.DB, m ...data.Metric) error {
 		return err
 	}
 	for _, v := range m {
-		tx.Exec(Upsert, v.ID, v.MType, v.Delta, v.Value)
+		fn := retry.Retry(context.TODO(), func() error {
+			_, err = tx.Exec(Upsert, v.ID, v.MType, v.Delta, v.Value)
+			return err
+		})
+		err = fn()
+
+		if err != nil {
+			tx.Rollback()
+			logger.Log.Info(err.Error())
+		}
 	}
 	return tx.Commit()
 }
 
-func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool) {
+func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool, err error) {
 	result := data.Metric{
 		ID:    name,
 		MType: gauge,
@@ -78,23 +92,23 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool) {
 	row := s.db.QueryRow(Select, name, gauge)
 	if row == nil {
 		fmt.Println("nul")
-		return result, false
+		return result, false, nil
 	}
 	var value sql.NullFloat64
 	var delta sql.NullInt64
-	err := row.Scan(&delta, &value)
+	err = row.Scan(&delta, &value)
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return result, false
+		return result, false, err
 	}
 	result.Value = &value.Float64
-	return result, true
+	return result, true, nil
 }
-func (s *PgStorage) Store(metric ...data.Metric) {
-	store(s.db, metric...)
+func (s *PgStorage) Store(metric ...data.Metric) error {
+	return store(s.db, s.retry, metric...)
 }
 
-func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool) {
+func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
 	result := data.Metric{
 		ID:    name,
 		MType: gauge,
@@ -102,25 +116,52 @@ func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool) {
 	row := s.db.QueryRow(Select, name, counter)
 	if row == nil {
 		fmt.Println("nul")
-		return result, false
+		return result, false, nil
 	}
 	var value sql.NullFloat64
 	var delta sql.NullInt64
-	err := row.Scan(&delta, &value)
+	err = row.Scan(&delta, &value)
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return result, false
+		return result, false, err
 	}
 	result.Delta = &delta.Int64
-	return result, true
+	return result, true, nil
 }
 
-func (s *PgStorage) GetGaugeMetrics() []data.Metric {
-	return s.fStorage.GetGaugeMetrics()
+func (s *PgStorage) GetMetrics() ([]data.Metric, error) {
+	result := make([]data.Metric, 0)
+	rows, err := s.db.Query(SelectAll)
+	defer rows.Close()
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var m data.Metric
+		var value sql.NullFloat64
+		var delta sql.NullInt64
+		err = rows.Scan(&m.ID, &m.MType, &value, &delta)
+		if err != nil {
+			return nil, err
+		}
+		if m.MType == counter {
+			m.Delta = &delta.Int64
+		}
+		if m.MType == gauge {
+			m.Value = &value.Float64
+		}
+
+		result = append(result, m)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+
 }
-func (s *PgStorage) GetCounterMetrics() []data.Metric {
-	return s.fStorage.GetCounterMetrics()
-}
+
 func (s *PgStorage) HealthCheck() bool {
 	err := s.db.Ping()
 	return err == nil

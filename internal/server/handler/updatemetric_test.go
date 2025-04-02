@@ -19,22 +19,19 @@ func (s *MockStorage) HealthCheck() bool {
 	return true
 }
 
-func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool) {
-	return data.Metric{}, true
+func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool, err error) {
+	return data.Metric{}, true, nil
 }
 
-func (s *MockStorage) Store(metric ...data.Metric) {
+func (s *MockStorage) Store(metric ...data.Metric) error {
+	return nil
+}
+func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
+	return data.Metric{}, true, nil
+}
 
-}
-func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool) {
-	return data.Metric{}, true
-}
-
-func (s *MockStorage) GetGaugeMetrics() []data.Metric {
-	return make([]data.Metric, 0)
-}
-func (s *MockStorage) GetCounterMetrics() []data.Metric {
-	return make([]data.Metric, 0)
+func (s *MockStorage) GetMetrics() ([]data.Metric, error) {
+	return make([]data.Metric, 0), nil
 }
 
 func TestSendMetric(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/megaded/metrictmr/internal/logger"
-	"go.uber.org/zap"
 )
 
 type Retry struct {
@@ -19,36 +18,66 @@ func NewRetry(start int, step int, maxRetry int) Retry {
 	return Retry{start: time.Duration(start * int(time.Second)), step: time.Duration(step * int(time.Second)), maxRetry: maxRetry}
 }
 
-func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, error)) func() {
-	rt := func() {
+func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, error)) func() error {
+	rt := func() error {
+		if r.maxRetry <= 0 {
+			return nil
+		}
 		resp, err := action()
 		if err != nil {
 			logger.Log.Error(err.Error())
-			if r.maxRetry <= 0 {
-				return
-			}
-			countRetry := r.maxRetry
+
+			countRetry := 0
 			delay := r.start
 			t := time.NewTicker(r.start)
-			logger.Log.Info("Start retry", zap.Int("retry start", int(r.start)))
 			for {
 				select {
 				case <-ctx.Done():
-					return
+					return err
 				case <-t.C:
-					logger.Log.Info("Retry max", zap.Int("retry max", r.maxRetry))
-					logger.Log.Info("Retry count", zap.Int("retry", countRetry))
+					_, err = action()
 					delay = delay + r.step
-					logger.Log.Info("Next retry", zap.Int("retry next", int(delay)))
 					t.Reset(delay)
-					countRetry--
-					if countRetry == 0 {
-						return
+					countRetry++
+					if countRetry == r.maxRetry {
+						return err
 					}
 				}
 			}
 		}
 		defer resp.Body.Close()
+		return err
+	}
+	return rt
+}
+
+func (r *Retry) Retry(ctx context.Context, action func() error) func() error {
+	rt := func() error {
+		err := action()
+		if err != nil {
+			if r.maxRetry <= 0 {
+				return nil
+			}
+			logger.Log.Error(err.Error())
+			countRetry := 0
+			delay := r.start
+			t := time.NewTicker(r.start)
+			for {
+				select {
+				case <-ctx.Done():
+					return err
+				case <-t.C:
+					err = action()
+					delay = delay + r.step
+					t.Reset(delay)
+					countRetry++
+					if countRetry == r.maxRetry {
+						return err
+					}
+				}
+			}
+		}
+		return err
 	}
 	return rt
 }

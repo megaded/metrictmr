@@ -6,11 +6,10 @@ import (
 )
 
 type Storager interface {
-	GetGauge(name string) (metric data.Metric, exist bool)
-	Store(metric ...data.Metric)
-	GetCounter(name string) (metric data.Metric, exist bool)
-	GetGaugeMetrics() []data.Metric
-	GetCounterMetrics() []data.Metric
+	GetGauge(name string) (metric data.Metric, exist bool, err error)
+	Store(metric ...data.Metric) error
+	GetCounter(name string) (metric data.Metric, exist bool, err error)
+	GetMetrics() ([]data.Metric, error)
 	HealthCheck() bool
 }
 
