@@ -16,7 +16,7 @@ const (
 	id uuid primary key default gen_random_uuid() ,
 	name text not null,
 	type text not null,
-	delta int null,
+	delta bigint null,
 	value double precision null,
 	constraint metrics_name_type unique (name, type));`
 
@@ -60,7 +60,7 @@ func migrate(db *sql.DB) error {
 	return err
 }
 
-func store(db *sql.DB, retry retry.Retry, m ...data.Metric) error {
+func store(db *sql.DB, m ...data.Metric) error {
 	if len(m) == 0 {
 		return nil
 	}
@@ -100,7 +100,7 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool, err e
 	return result, true, nil
 }
 func (s *PgStorage) Store(metric ...data.Metric) error {
-	return store(s.db, s.retry, metric...)
+	return store(s.db, metric...)
 }
 
 func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
@@ -127,10 +127,11 @@ func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err
 func (s *PgStorage) GetMetrics() ([]data.Metric, error) {
 	result := make([]data.Metric, 0)
 	rows, err := s.db.Query(SelectAll)
-	defer rows.Close()
+
 	if err != nil {
 		return result, err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var m data.Metric
 		var value sql.NullFloat64
