@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/megaded/metrictmr/internal/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -14,29 +15,22 @@ type MockStorage struct {
 	mock.Mock
 }
 
-func (s *MockStorage) GetGauge(name string) (value float64, exist bool) {
-	return 1, true
+func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool) {
+	return data.Metric{}, true
 }
 
-func (s *MockStorage) StoreGauge(name string, value float64) {
+func (s *MockStorage) Store(metric data.Metric) {
 
 }
-
-func (s *MockStorage) GetCounter(name string) (value int64, exist bool) {
-	return 1, true
+func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool) {
+	return data.Metric{}, true
 }
 
-func (s *MockStorage) StoreCounter(name string, value int64) {
-
+func (s *MockStorage) GetGaugeMetrics() []data.Metric {
+	return make([]data.Metric, 0)
 }
-
-func (s *MockStorage) GetGaugeMetrics() map[string]float64 {
-	return map[string]float64{"1": 1.1}
-
-}
-
-func (s *MockStorage) GetCounterMetrics() map[string]int64 {
-	return map[string]int64{"test": 1}
+func (s *MockStorage) GetCounterMetrics() []data.Metric {
+	return make([]data.Metric, 0)
 }
 
 func TestSendMetric(t *testing.T) {

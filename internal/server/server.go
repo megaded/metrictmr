@@ -3,18 +3,21 @@ package server
 import (
 	"net/http"
 
+	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
 	"github.com/megaded/metrictmr/internal/server/handler/storage"
+	"github.com/megaded/metrictmr/internal/server/middleware"
+	"go.uber.org/zap"
 )
 
 type Server struct {
 	Handler http.Handler
-	config  Configer
+	Address string
 }
 
 func (s *Server) Start() (err error) {
-	return http.ListenAndServe(s.config.GetAddress(), s.Handler)
+	return http.ListenAndServe(s.Address, s.Handler)
 }
 
 type Configer interface {
@@ -27,8 +30,19 @@ type Listener interface {
 
 func CreateServer() (s Listener) {
 	server := &Server{}
-	storage := storage.NewStorage()
-	server.Handler = handler.CreateRouter(storage)
-	server.config = config.GetConfig()
+	logger.SetupLogger("Info")
+	serverConfig := config.GetConfig()
+	logConfig(*serverConfig)
+	storage := storage.NewFileStorage(*serverConfig.StoreInterval, serverConfig.FilePath, *serverConfig.Restore)
+	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
+	server.Address = serverConfig.Address
 	return server
+}
+
+func logConfig(c config.Config) {
+	nConfig := "Config"
+	logger.Log.Info(nConfig, zap.String("add", c.Address))
+	logger.Log.Info(nConfig, zap.String("path", c.FilePath))
+	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
+	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
 }
