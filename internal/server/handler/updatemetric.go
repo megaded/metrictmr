@@ -194,7 +194,7 @@ func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Requ
 				statusCode = http.StatusBadRequest
 				break
 			}
-			if fValue <= 0 {
+			if fValue < 0 {
 				statusCode = http.StatusBadRequest
 				break
 			}
@@ -209,7 +209,7 @@ func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Requ
 				statusCode = http.StatusBadRequest
 				break
 			}
-			if fValue <= 0 {
+			if fValue < 0 {
 				statusCode = http.StatusBadRequest
 				break
 			}
