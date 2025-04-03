@@ -25,8 +25,6 @@ func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, e
 		}
 		resp, err := action()
 		if err != nil {
-			logger.Log.Error(err.Error())
-
 			countRetry := 0
 			delay := r.start
 			t := time.NewTicker(r.start)
@@ -37,19 +35,24 @@ func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, e
 				case <-t.C:
 					resp, err = action()
 					if err != nil {
+						logger.Log.Error(err.Error())
 						delay = delay + r.step
 						t.Reset(delay)
 						countRetry++
 						if countRetry == r.maxRetry {
 							return err
 						}
+
+					} else {
+						defer resp.Body.Close()
+						return nil
 					}
-					defer resp.Body.Close()
-					return nil
 				}
 			}
+		} else {
+			defer resp.Body.Close()
 		}
-		defer resp.Body.Close()
+
 		return err
 	}
 	return rt
@@ -72,12 +75,15 @@ func (r *Retry) Retry(ctx context.Context, action func() error) func() error {
 					return err
 				case <-t.C:
 					err = action()
-					delay = delay + r.step
-					t.Reset(delay)
-					countRetry++
-					if countRetry == r.maxRetry {
-						return err
+					if err != nil {
+						delay = delay + r.step
+						t.Reset(delay)
+						countRetry++
+						if countRetry == r.maxRetry {
+							return err
+						}
 					}
+					return nil
 				}
 			}
 		}
