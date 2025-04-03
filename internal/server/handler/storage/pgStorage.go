@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"fmt"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/megaded/metrictmr/internal/data"
@@ -85,15 +84,14 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool, err e
 		MType: gauge,
 	}
 	row := s.db.QueryRow(Select, name, gauge)
-	if row == nil {
-		fmt.Println("nul")
-		return result, false, nil
-	}
 	var value sql.NullFloat64
 	var delta sql.NullInt64
 	err = row.Scan(&delta, &value)
 	if err != nil {
 		logger.Log.Info(err.Error())
+		if err == sql.ErrNoRows {
+			return result, false, nil
+		}
 		return result, false, err
 	}
 	result.Value = &value.Float64
@@ -109,10 +107,6 @@ func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err
 		MType: gauge,
 	}
 	row := s.db.QueryRow(Select, name, counter)
-	if row == nil {
-		fmt.Println("nul")
-		return result, false, nil
-	}
 	var value sql.NullFloat64
 	var delta sql.NullInt64
 	err = row.Scan(&delta, &value)
