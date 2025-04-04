@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/megaded/metrictmr/internal/logger"
@@ -28,12 +29,12 @@ type Listener interface {
 	Start() (err error)
 }
 
-func CreateServer() (s Listener) {
+func CreateServer(ctx context.Context) (s Listener) {
 	server := &Server{}
 	logger.SetupLogger("Info")
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
-	storage := storage.CreateStorage(*serverConfig)
+	storage := storage.CreateStorage(ctx, *serverConfig)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server

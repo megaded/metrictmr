@@ -46,18 +46,18 @@ func (s *FileStorage) HealthCheck() bool {
 	return true
 }
 
-func NewFileStorage(cfg config.Config) *FileStorage {
+func NewFileStorage(ctx context.Context, cfg config.Config) *FileStorage {
 	fs := FileStorage{m: NewInMemoryStorage(), internal: *cfg.StoreInterval, filePath: cfg.FilePath, restore: *cfg.Restore, retry: retry.NewRetry(1, 2, 3)}
 	if fs.internal != 0 {
 		go func() {
-
-			count := 0
+			timer := time.NewTicker(time.Duration(*cfg.StoreInterval * int(time.Second)))
 			for {
-				if count%*cfg.StoreInterval == 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
 					fs.persistData()
 				}
-				time.Sleep(time.Second)
-				count++
 			}
 		}()
 	}

@@ -28,7 +28,7 @@ type Configer interface {
 }
 
 type MetricSender interface {
-	StartSend()
+	StartSend(ctx context.Context)
 }
 
 type Agent struct {
@@ -49,8 +49,7 @@ func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) {
 	f()
 }
 
-func (a *Agent) StartSend() {
-	ctx := context.Background()
+func (a *Agent) StartSend(ctx context.Context) {
 	pollInterval := a.Config.GetPoolInterval()
 	reportInterval := a.Config.GetReportInterval()
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())

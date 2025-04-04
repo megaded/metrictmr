@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/server/handler/config"
 )
@@ -13,13 +15,13 @@ type Storager interface {
 	HealthCheck() bool
 }
 
-func CreateStorage(cfg config.Config) Storager {
+func CreateStorage(ctx context.Context, cfg config.Config) Storager {
 	if cfg.DBConnString != "" {
-		return NewPgStorage(cfg)
+		return NewPgStorage(ctx, cfg)
 	}
 	_, isDefault := cfg.GetFilePath()
 	if !isDefault {
-		return NewFileStorage(cfg)
+		return NewFileStorage(ctx, cfg)
 	}
 	return NewInMemoryStorage()
 }

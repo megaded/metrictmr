@@ -20,9 +20,6 @@ func NewRetry(start int, step int, maxRetry int) Retry {
 
 func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, error)) func() error {
 	rt := func() error {
-		if r.maxRetry <= 0 {
-			return nil
-		}
 		resp, err := action()
 		if err != nil {
 			countRetry := 0
@@ -62,9 +59,6 @@ func (r *Retry) Retry(ctx context.Context, action func() error) func() error {
 	rt := func() error {
 		err := action()
 		if err != nil {
-			if r.maxRetry <= 0 {
-				return nil
-			}
 			logger.Log.Error(err.Error())
 			countRetry := 0
 			delay := r.start

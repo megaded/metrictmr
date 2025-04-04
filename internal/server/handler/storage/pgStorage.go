@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -37,7 +38,7 @@ type PgStorage struct {
 	retry        retry.Retry
 }
 
-func NewPgStorage(cfg config.Config) *PgStorage {
+func NewPgStorage(ctx context.Context, cfg config.Config) *PgStorage {
 	db, err := sql.Open("pgx", cfg.DBConnString)
 	if err != nil {
 		logger.Log.Fatal(err.Error())
@@ -50,8 +51,12 @@ func NewPgStorage(cfg config.Config) *PgStorage {
 	if err != nil {
 		logger.Log.Fatal(err.Error())
 	}
+	go func() {
+		defer db.Close()
+		<-ctx.Done()
+	}()
 
-	return &PgStorage{fStorage: *NewFileStorage(cfg), dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
+	return &PgStorage{fStorage: *NewFileStorage(ctx, cfg), dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
 }
 
 func migrate(db *sql.DB) error {
