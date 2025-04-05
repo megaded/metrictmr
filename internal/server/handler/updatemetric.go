@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/server/handler/storage"
 )
 
 const (
@@ -22,15 +23,7 @@ const (
 	nameParam   = "name"
 )
 
-type Storager interface {
-	GetGauge(name string) (metric data.Metric, exist bool)
-	Store(metric data.Metric)
-	GetCounter(name string) (metric data.Metric, exist bool)
-	GetGaugeMetrics() []data.Metric
-	GetCounterMetrics() []data.Metric
-}
-
-func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
+func CreateRouter(s storage.Storager, middleWare ...func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.Compress(5, "application/json", "text/html"))
 	for _, m := range middleWare {
@@ -46,28 +39,55 @@ func CreateRouter(s Storager, middleWare ...func(http.Handler) http.Handler) htt
 		r.Get("/{type}/{name}", getMetricHandler(s))
 	})
 
+	router.Route("/ping", func(r chi.Router) {
+		r.Get("/", getPingDBHandler(s))
+	})
+
+	router.Route("/updates", func(r chi.Router) {
+		r.Post("/", getSaveBulkJSONHandler(s))
+	})
+
 	router.Get("/", getMetricListHandler(s))
 	return router
 }
 
-func getMetricListHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricListHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b := new(bytes.Buffer)
-		gaugeMetrics := s.GetGaugeMetrics()
-		for _, value := range gaugeMetrics {
-			fmt.Fprintf(b, "Name %v=\"%f\"\n", value.ID, *value.Value)
+		metrics, err := s.GetMetrics()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		counterMetrics := s.GetCounterMetrics()
-		for _, value := range counterMetrics {
-			fmt.Fprintf(b, "Name %v=\"%d\"\n", value.ID, *value.Delta)
+		for _, value := range metrics {
+			if value.MType == gaugeType {
+				fmt.Fprintf(b, "Name %v=\"%f\"\n", value.ID, *value.Value)
+			}
+			if value.MType == counterType {
+				fmt.Fprintf(b, "Name %v=\"%d\"\n", value.ID, *value.Delta)
+			}
+
 		}
+
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b.Bytes())
 	}
 }
 
-func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getPingDBHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ping := s.HealthCheck()
+		if ping {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+}
+
+func getMetricHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mType := chi.URLParam(r, typeParam)
 		if mType != gaugeType && mType != counterType {
@@ -77,13 +97,21 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 		mName := chi.URLParam(r, nameParam)
 		switch mType {
 		case gaugeType:
-			value, ok := s.GetGauge(mName)
+			value, ok, err := s.GetGauge(mName)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			if ok {
 				w.Write([]byte(FloatFormat(*value.Value)))
 				return
 			}
 		case counterType:
-			value, ok := s.GetCounter(mName)
+			value, ok, err := s.GetCounter(mName)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			if ok {
 				w.Write([]byte(fmt.Sprintf("%d", *value.Delta)))
 				return
@@ -94,7 +122,7 @@ func getMetricHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getMetricJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
@@ -106,7 +134,11 @@ func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 		var resp []byte
 		switch metric.MType {
 		case gaugeType:
-			storedMetric, ok := s.GetGauge(metric.ID)
+			storedMetric, ok, err := s.GetGauge(metric.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -118,7 +150,11 @@ func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 				return
 			}
 		case counterType:
-			storedMetric, ok := s.GetCounter(metric.ID)
+			storedMetric, ok, err := s.GetCounter(metric.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
 				return
@@ -137,7 +173,7 @@ func getMetricJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mName := chi.URLParam(r, nameParam)
 		if mName == "" {
@@ -153,34 +189,42 @@ func getSaveHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
 		statusCode := http.StatusOK
 		switch mType {
 		case gaugeType:
-			fValue, error := strconv.ParseFloat(mValue, 64)
-			if error != nil {
+			fValue, err := strconv.ParseFloat(mValue, 64)
+			if err != nil {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			if fValue <= 0 {
+			if fValue < 0 {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			s.Store(data.Metric{ID: mName, MType: gaugeType, Value: &fValue})
+			err = s.Store(r.Context(), data.Metric{ID: mName, MType: gaugeType, Value: &fValue})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		case counterType:
-			fValue, error := strconv.ParseInt(mValue, 10, 64)
-			if error != nil {
+			fValue, err := strconv.ParseInt(mValue, 10, 64)
+			if err != nil {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			if fValue <= 0 {
+			if fValue < 0 {
 				statusCode = http.StatusBadRequest
 				break
 			}
-			s.Store(data.Metric{ID: mName, MType: counterType, Delta: &fValue})
+			err = s.Store(r.Context(), data.Metric{ID: mName, MType: counterType, Delta: &fValue})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		w.WriteHeader(statusCode)
 	}
 }
 
-func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request) {
+func getSaveJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
@@ -199,8 +243,16 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			s.Store(metric)
-			storedMetric, _ := s.GetGauge(metric.ID)
+			err = s.Store(r.Context(), metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			storedMetric, _, err := s.GetGauge(metric.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {
 				logger.Log.Info(err.Error())
@@ -212,8 +264,16 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			s.Store(metric)
-			storedMetric, _ := s.GetCounter(metric.ID)
+			err = s.Store(r.Context(), metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			storedMetric, _, err := s.GetCounter(metric.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {
 				logger.Log.Info(err.Error())
@@ -225,6 +285,30 @@ func getSaveJSONHandler(s Storager) func(w http.ResponseWriter, r *http.Request)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(resp)
+	}
+}
+
+func getSaveBulkJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var metric []data.Metric
+		err := json.NewDecoder(r.Body).Decode(&metric)
+		if err != nil {
+			bodyBytes, err := io.ReadAll(r.Body)
+			logger.Log.Info(string(bodyBytes))
+			w.WriteHeader(http.StatusBadRequest)
+			logger.Log.Info(err.Error())
+			w.Write([]byte(err.Error()))
+			return
+		}
+
+		err = s.Store(r.Context(), metric...)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

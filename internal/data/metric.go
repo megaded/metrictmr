@@ -1,5 +1,10 @@
 package data
 
+const (
+	MTypeGauge   = "gauge"
+	MTypeCounter = "counter"
+)
+
 type Metric struct {
 	ID    string   `json:"id"`
 	MType string   `json:"type"`
