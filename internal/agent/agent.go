@@ -143,6 +143,8 @@ func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, m
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {
 		logger.Log.Info(err.Error())
 		return
