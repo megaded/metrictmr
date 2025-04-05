@@ -9,7 +9,7 @@ import (
 
 type Storager interface {
 	GetGauge(name string) (metric data.Metric, exist bool, err error)
-	Store(metric ...data.Metric) error
+	Store(ctx context.Context, metric ...data.Metric) error
 	GetCounter(name string) (metric data.Metric, exist bool, err error)
 	GetMetrics() ([]data.Metric, error)
 	HealthCheck() bool

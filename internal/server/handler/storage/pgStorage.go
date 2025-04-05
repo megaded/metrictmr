@@ -102,7 +102,7 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool, err e
 	result.Value = &value.Float64
 	return result, true, nil
 }
-func (s *PgStorage) Store(metric ...data.Metric) error {
+func (s *PgStorage) Store(ctx context.Context, metric ...data.Metric) error {
 	return store(s.db, metric...)
 }
 

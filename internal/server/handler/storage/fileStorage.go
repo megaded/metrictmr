@@ -24,13 +24,13 @@ type FileStorage struct {
 func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool, err error) {
 	return s.m.GetGauge(name)
 }
-func (s *FileStorage) Store(metric ...data.Metric) error {
-	err := s.m.Store(metric...)
+func (s *FileStorage) Store(ctx context.Context, metric ...data.Metric) error {
+	err := s.m.Store(ctx, metric...)
 	if err != nil {
 		return err
 	}
 	if s.internal == 0 {
-		return s.persistData()
+		return s.persistData(ctx)
 	}
 	return nil
 }
@@ -56,18 +56,18 @@ func NewFileStorage(ctx context.Context, cfg config.Config) *FileStorage {
 				case <-ctx.Done():
 					return
 				case <-timer.C:
-					fs.persistData()
+					fs.persistData(ctx)
 				}
 			}
 		}()
 	}
 	if fs.restore {
-		fs.restoreStorage()
+		fs.restoreStorage(ctx)
 	}
 	return &fs
 }
 
-func (s FileStorage) restoreStorage() {
+func (s FileStorage) restoreStorage(ctx context.Context) {
 	var metrics []data.Metric
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
@@ -81,11 +81,11 @@ func (s FileStorage) restoreStorage() {
 		return
 	}
 	for _, m := range metrics {
-		s.Store(m)
+		s.Store(ctx, m)
 	}
 }
 
-func (s *FileStorage) persistData() error {
+func (s *FileStorage) persistData(ctx context.Context) error {
 	metrics, err := s.m.GetMetrics()
 	if err != nil {
 		return err
@@ -116,6 +116,6 @@ func (s *FileStorage) persistData() error {
 		defer file.Close()
 		return nil
 	}
-	fn := s.retry.Retry(context.TODO(), action)
+	fn := s.retry.Retry(ctx, action)
 	return fn()
 }

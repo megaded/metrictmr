@@ -11,18 +11,12 @@ import (
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-		<-c
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
 		cancel()
 	}()
 	s := server.CreateServer(ctx)
-	err := s.Start()
-	if err != nil {
-		panic(err)
-	}
-
+	s.Start(ctx)
 }

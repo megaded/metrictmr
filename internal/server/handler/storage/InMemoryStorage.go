@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+
 	"github.com/megaded/metrictmr/internal/data"
 )
 
@@ -20,7 +22,7 @@ func (s *InMemoryStorage) GetGauge(name string) (metric data.Metric, exist bool,
 	return metric, exist, nil
 }
 
-func (s *InMemoryStorage) Store(metric ...data.Metric) error {
+func (s *InMemoryStorage) Store(ctx context.Context, metric ...data.Metric) error {
 	for _, v := range metric {
 		key := getKey(v.MType, v.ID)
 		if v.MType == gauge {

@@ -17,8 +17,16 @@ type Server struct {
 	Address string
 }
 
-func (s *Server) Start() (err error) {
-	return http.ListenAndServe(s.Address, s.Handler)
+func (s *Server) Start(ctx context.Context) {
+	server := http.Server{Addr: s.Address, Handler: s.Handler}
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(ctx)
+	}()
+	err := server.ListenAndServe()
+	if err != nil {
+		panic(err)
+	}
 }
 
 type Configer interface {
@@ -26,7 +34,7 @@ type Configer interface {
 }
 
 type Listener interface {
-	Start() (err error)
+	Start(ctx context.Context)
 }
 
 func CreateServer(ctx context.Context) (s Listener) {

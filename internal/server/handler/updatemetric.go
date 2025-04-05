@@ -198,7 +198,7 @@ func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Requ
 				statusCode = http.StatusBadRequest
 				break
 			}
-			err = s.Store(data.Metric{ID: mName, MType: gaugeType, Value: &fValue})
+			err = s.Store(r.Context(), data.Metric{ID: mName, MType: gaugeType, Value: &fValue})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -213,7 +213,7 @@ func getSaveHandler(s storage.Storager) func(w http.ResponseWriter, r *http.Requ
 				statusCode = http.StatusBadRequest
 				break
 			}
-			err = s.Store(data.Metric{ID: mName, MType: counterType, Delta: &fValue})
+			err = s.Store(r.Context(), data.Metric{ID: mName, MType: counterType, Delta: &fValue})
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -243,7 +243,7 @@ func getSaveJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			err = s.Store(metric)
+			err = s.Store(r.Context(), metric)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -264,7 +264,7 @@ func getSaveJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *http.
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			err = s.Store(metric)
+			err = s.Store(r.Context(), metric)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -301,7 +301,7 @@ func getSaveBulkJSONHandler(s storage.Storager) func(w http.ResponseWriter, r *h
 			return
 		}
 
-		err = s.Store(metric...)
+		err = s.Store(r.Context(), metric...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

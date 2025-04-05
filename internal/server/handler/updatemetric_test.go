@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -23,7 +24,7 @@ func (s *MockStorage) GetGauge(name string) (metric data.Metric, exist bool, err
 	return data.Metric{}, true, nil
 }
 
-func (s *MockStorage) Store(metric ...data.Metric) error {
+func (s *MockStorage) Store(ctx context.Context, metric ...data.Metric) error {
 	return nil
 }
 func (s *MockStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
