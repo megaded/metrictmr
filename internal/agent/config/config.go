@@ -1,7 +1,7 @@
 package config
 
 import (
-	flag "github.com/spf13/pflag"
+	"flag"
 
 	"github.com/caarlos0/env"
 )
@@ -47,17 +47,21 @@ func setEnvParam(c *Config) {
 }
 
 func setCmdParam(c *Config) {
+	address := flag.String("a", defaultAddr, "server endpoint")
+	reportInterval := flag.Int64("r", reportInterval, "reportInterval")
+	pollInterval := flag.Int64("p", pollInterval, "pollInterval")
+	key := flag.String("k", "", "key")
+	flag.Parse()
 	if c.Address == "" {
-		flag.StringVar(&c.Address, "a", defaultAddr, "server endpoint")
+		c.Address = *address
 	}
 	if c.ReportInterval == 0 {
-		flag.Int64Var(&c.ReportInterval, "r", reportInterval, "reportInterval")
+		c.ReportInterval = *reportInterval
 	}
 	if c.PollInterval == 0 {
-		flag.Int64Var(&c.PollInterval, "p", pollInterval, "pollInterval")
+		c.PollInterval = *pollInterval
 	}
 	if c.Key == "" {
-		flag.StringVar(&c.Key, "k", "", "key")
+		c.Key = *key
 	}
-	flag.Parse()
 }
