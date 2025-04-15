@@ -19,6 +19,7 @@ type Config struct {
 	FilePath      string `env:"FILE_STORAGE_PATH"`
 	Restore       *bool  `env:"RESTORE,init"`
 	DBConnString  string `env:"DATABASE_DSN"`
+	Key           string `env:"KEY"`
 }
 
 func (c *Config) GetAddress() string {
@@ -59,6 +60,9 @@ func setCmdParam(c *Config) {
 		restore := false
 		c.Restore = &restore
 		flag.BoolVar(c.Restore, "r", defaultRestore, "restore")
+	}
+	if c.Key == "" {
+		flag.StringVar(&c.Key, "k", "", "key")
 	}
 	flag.Parse()
 }

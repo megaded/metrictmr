@@ -43,7 +43,7 @@ func CreateServer(ctx context.Context) (s Listener) {
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
 	storage := storage.CreateStorage(ctx, *serverConfig)
-	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
+	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware, middleware.HashWriter(serverConfig.Key))
 	server.Address = serverConfig.Address
 	return server
 }
@@ -55,4 +55,5 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
 	logger.Log.Info(nConfig, zap.String("db conn string", c.DBConnString))
+	logger.Log.Info(nConfig, zap.String("key", c.Key))
 }

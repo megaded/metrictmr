@@ -32,7 +32,6 @@ where m.name = EXCLUDED.name and m.type = EXCLUDED.type;`
 )
 
 type PgStorage struct {
-	fStorage     FileStorage
 	dbConnString string
 	db           *sql.DB
 	retry        retry.Retry
@@ -56,7 +55,7 @@ func NewPgStorage(ctx context.Context, cfg config.Config) *PgStorage {
 		<-ctx.Done()
 	}()
 
-	return &PgStorage{fStorage: *NewFileStorage(ctx, cfg), dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
+	return &PgStorage{dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
 }
 
 func migrate(db *sql.DB) error {

@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,14 +20,16 @@ import (
 )
 
 const (
-	gauge   = "gauge"
-	counter = "counter"
+	gauge      = "gauge"
+	counter    = "counter"
+	hashHeader = "HashSHA256"
 )
 
 type Configer interface {
 	GetAddress() string
 	GetReportInterval() int64
 	GetPoolInterval() int64
+	GetKey() string
 }
 
 type MetricSender interface {
@@ -39,6 +44,7 @@ type Agent struct {
 type AgentHTTPClient struct {
 	httpClient *http.Client
 	retry      retry.Retry
+	key        string
 }
 
 func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) {
@@ -66,7 +72,7 @@ func (a *Agent) StartSend(ctx context.Context) {
 
 		case <-reportTimer.C:
 			logger.Log.Info("Send metric")
-			sendBulkMetric(ctx, metrics, addr, a.httpClient)
+			sendBulkMetric(ctx, metrics, addr, a.Config.GetKey(), a.httpClient)
 		case <-ctx.Done():
 			return
 		}
@@ -80,7 +86,7 @@ func CreateAgent() MetricSender {
 	return a
 }
 
-func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		return
 	}
@@ -91,16 +97,16 @@ func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client
 	for _, v := range c.CounterMetrics {
 		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
 	}
-	sendMetricJSON(ctx, client, addr, d...)
+	sendMetricJSON(ctx, client, addr, key, d...)
 
 }
 
-func sendMetrics(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
+func sendMetrics(ctx context.Context, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
 	for _, m := range c.GaugeMetrics {
-		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
+		sendMetricJSON(ctx, client, addr, key, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
 	}
 	for _, m := range c.CounterMetrics {
-		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
+		sendMetricJSON(ctx, client, addr, key, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
 	}
 }
 
@@ -121,7 +127,7 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, metric ...data.Metric) {
+func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error(err.Error())
@@ -143,6 +149,12 @@ func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, m
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if key != "" {
+		h := hmac.New(sha256.New, []byte(key))
+		h.Write(data)
+		hash := hex.EncodeToString(h.Sum(nil))
+		req.Header.Set(hashHeader, hash)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {
