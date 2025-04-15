@@ -56,10 +56,8 @@ func setCmdParam(c *Config) {
 	if c.PollInterval == 0 {
 		flag.Int64Var(&c.PollInterval, "p", pollInterval, "pollInterval")
 	}
-	/*if c.Key == nil {
-		k := ""
-		c.Key = &k
-		flag.StringVar(c.Key, "k", "", "key")
-	}*/
+	if c.Key == "" {
+		flag.StringVar(&c.Key, "k", "", "key")
+	}
 	flag.Parse()
 }
