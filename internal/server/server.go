@@ -43,7 +43,7 @@ func CreateServer(ctx context.Context) (s Listener) {
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
 	storage := storage.CreateStorage(ctx, *serverConfig)
-	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware, middleware.Hash(serverConfig.Key))
+	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server
 }
