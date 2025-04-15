@@ -9,19 +9,26 @@ import (
 	"net/http"
 
 	"github.com/megaded/metrictmr/internal/logger"
+	"go.uber.org/zap"
 )
 
-const hashHeader string = "HashSHA256"
+const HashHeader string = "HashSHA256"
 
 func Hash(key string) func(h http.Handler) http.Handler {
 	hFunc := func(h http.Handler) http.Handler {
 		hashFn := func(w http.ResponseWriter, r *http.Request) {
-			hashWriter := hashWriter{
-				ResponseWriter: w,
-				key:            key,
-			}
-			hashHeader := r.Header.Get(hashHeader)
-			if r.Body != nil && hashHeader != "" && key != "" {
+			hw := w
+			if key != "" {
+				hashHeader := r.Header.Get(HashHeader)
+				if hashHeader == "" {
+					hw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				hashWriter := hashWriter{
+					ResponseWriter: w,
+					key:            key,
+				}
+				hw = &hashWriter
 				bodyBytes, err := io.ReadAll(r.Body)
 				if err != nil {
 					logger.Log.Info(err.Error())
@@ -32,13 +39,14 @@ func Hash(key string) func(h http.Handler) http.Handler {
 				h.Write(bodyBytes)
 				hash := hex.EncodeToString(h.Sum(nil))
 				if hash != hashHeader {
-					w.WriteHeader(http.StatusBadRequest)
+					logger.Log.Error("Hash not equal", zap.String("request hash", hashHeader), zap.String("calculated hash", hash))
+					hw.WriteHeader(http.StatusBadRequest)
 					return
 				}
 				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}
 
-			h.ServeHTTP(&hashWriter, r)
+			h.ServeHTTP(hw, r)
 		}
 		return http.HandlerFunc(hashFn)
 	}
@@ -55,7 +63,8 @@ func (r *hashWriter) Write(b []byte) (int, error) {
 		h := hmac.New(sha256.New, []byte(r.key))
 		h.Write(b)
 		hash := hex.EncodeToString(h.Sum(nil))
-		r.ResponseWriter.Header().Add(hashHeader, hash)
+		logger.Log.Info(hash)
+		r.ResponseWriter.Header().Set(HashHeader, hash)
 	}
 	size, err := r.ResponseWriter.Write(b)
 	return size, err
