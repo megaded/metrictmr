@@ -14,12 +14,12 @@ const (
 )
 
 type Config struct {
-	Address       string  `env:"ADDRESS"`
-	StoreInterval *int    `env:"STORE_INTERVAL"`
-	FilePath      string  `env:"FILE_STORAGE_PATH"`
-	Restore       *bool   `env:"RESTORE,init"`
-	DBConnString  string  `env:"DATABASE_DSN"`
-	Key           *string `env:"KEY"`
+	Address       string `env:"ADDRESS"`
+	StoreInterval *int   `env:"STORE_INTERVAL"`
+	FilePath      string `env:"FILE_STORAGE_PATH"`
+	Restore       *bool  `env:"RESTORE,init"`
+	DBConnString  string `env:"DATABASE_DSN"`
+	Key           string `env:"KEY"`
 }
 
 func (c *Config) GetAddress() string {

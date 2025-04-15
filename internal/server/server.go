@@ -55,5 +55,5 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
 	logger.Log.Info(nConfig, zap.String("db conn string", c.DBConnString))
-	logger.Log.Info(nConfig, zap.String("key", *c.Key))
+	logger.Log.Info(nConfig, zap.String("key", c.Key))
 }
