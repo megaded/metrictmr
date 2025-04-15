@@ -13,10 +13,10 @@ const (
 )
 
 type Config struct {
-	Address        string `env:"ADDRESS"`
-	ReportInterval int64  `env:"REPORT_INTERVAL"`
-	PollInterval   int64  `env:"POLL_INTERVAL"`
-	Key            string `env:"KEY"`
+	Address        string  `env:"ADDRESS"`
+	ReportInterval int64   `env:"REPORT_INTERVAL"`
+	PollInterval   int64   `env:"POLL_INTERVAL"`
+	Key            *string `env:"KEY"`
 }
 
 func (c *Config) GetAddress() string {
@@ -32,7 +32,7 @@ func (c *Config) GetPoolInterval() int64 {
 }
 
 func (c *Config) GetKey() string {
-	return c.Key
+	return *c.Key
 }
 
 func GetConfig() *Config {
@@ -59,8 +59,10 @@ func setCmdParam(c *Config) {
 	if c.PollInterval == 0 {
 		flag.Int64Var(&c.PollInterval, "p", pollInterval, "pollInterval")
 	}
-	if c.Key == "" {
-		flag.StringVar(&c.Key, "k", "", "key")
+	if c.Key == nil {
+		k := ""
+		c.Key = &k
+		flag.StringVar(c.Key, "k", "", "key")
 	}
 	flag.Parse()
 }
