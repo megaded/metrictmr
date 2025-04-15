@@ -13,40 +13,12 @@ import (
 
 const hashHeader string = "HashSHA256"
 
-func HashWriter(key string) func(h http.Handler) http.Handler {
+func Hash(key string) func(h http.Handler) http.Handler {
 	hFunc := func(h http.Handler) http.Handler {
 		hashFn := func(w http.ResponseWriter, r *http.Request) {
-			hashHeader := r.Header.Get(hashHeader)
-			if r.Body != nil && hashHeader != "" && key != "" {
-				bodyBytes, err := io.ReadAll(r.Body)
-				if err != nil {
-					logger.Log.Info(err.Error())
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				h := hmac.New(sha256.New, []byte(key))
-				h.Write(bodyBytes)
-				hash := hex.EncodeToString(h.Sum(nil))
-				if hash != hashHeader {
-					w.WriteHeader(http.StatusBadRequest)
-					return
-				}
-				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-			}
-			h.ServeHTTP(w, r)
-
-		}
-		return http.HandlerFunc(hashFn)
-	}
-	return hFunc
-}
-
-func HashReader(key string) func(h http.Handler) http.Handler {
-	hFunc := func(h http.Handler) http.Handler {
-		hashFn := func(w http.ResponseWriter, r *http.Request) {
-
-			lw := hashReader{
+			hashWriter := hashWriter{
 				ResponseWriter: w,
+				key:            key,
 			}
 			hashHeader := r.Header.Get(hashHeader)
 			if r.Body != nil && hashHeader != "" && key != "" {
@@ -65,19 +37,20 @@ func HashReader(key string) func(h http.Handler) http.Handler {
 				}
 				r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 			}
-			h.ServeHTTP(&lw, r)
+
+			h.ServeHTTP(&hashWriter, r)
 		}
 		return http.HandlerFunc(hashFn)
 	}
 	return hFunc
 }
 
-type hashReader struct {
+type hashWriter struct {
 	http.ResponseWriter
 	key string
 }
 
-func (r *hashReader) Write(b []byte) (int, error) {
+func (r *hashWriter) Write(b []byte) (int, error) {
 	if r.key != "" {
 		h := hmac.New(sha256.New, []byte(r.key))
 		h.Write(b)
@@ -88,6 +61,6 @@ func (r *hashReader) Write(b []byte) (int, error) {
 	return size, err
 }
 
-func (r *hashReader) WriteHeader(statusCode int) {
+func (r *hashWriter) WriteHeader(statusCode int) {
 	r.ResponseWriter.WriteHeader(statusCode)
 }
