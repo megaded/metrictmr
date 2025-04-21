@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/megaded/metrictmr/internal/data"
@@ -19,20 +20,9 @@ const (
 	delta bigint null,
 	value double precision null,
 	constraint metrics_name_type unique (name, type));`
-
-	Upsert = `insert into metrics as m (name, type, delta, value) values ($1, $2, $3, $4) 
-ON conflict(name ,type) do 
-update set value = EXCLUDED.value, delta = m.delta + EXCLUDED.delta
-where m.name = EXCLUDED.name and m.type = EXCLUDED.type;`
-	Select = `select m.delta, m.value
-   from metrics m 
-   where m."name" =$1 and m."type" = $2;`
-	SelectAll = `select m.name, m.type, m.delta, m.value, 
-   from metrics m;`
 )
 
 type PgStorage struct {
-	fStorage     FileStorage
 	dbConnString string
 	db           *sql.DB
 	retry        retry.Retry
@@ -56,7 +46,7 @@ func NewPgStorage(ctx context.Context, cfg config.Config) *PgStorage {
 		<-ctx.Done()
 	}()
 
-	return &PgStorage{fStorage: *NewFileStorage(ctx, cfg), dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
+	return &PgStorage{dbConnString: cfg.DBConnString, db: db, retry: retry.NewRetry(1, 2, 3)}
 }
 
 func migrate(db *sql.DB) error {
@@ -73,7 +63,10 @@ func store(db *sql.DB, m ...data.Metric) error {
 		return err
 	}
 	for _, v := range m {
-		_, err = tx.Exec(Upsert, v.ID, v.MType, v.Delta, v.Value)
+		_, err = tx.Exec(`insert into metrics as m (name, type, delta, value) values ($1, $2, $3, $4) 
+ON conflict(name ,type) do 
+update set value = EXCLUDED.value, delta = m.delta + EXCLUDED.delta
+where m.name = EXCLUDED.name and m.type = EXCLUDED.type;`, v.ID, v.MType, v.Delta, v.Value)
 		if err != nil {
 			logger.Log.Info(err.Error())
 			tx.Rollback()
@@ -88,13 +81,15 @@ func (s *PgStorage) GetGauge(name string) (metric data.Metric, exist bool, err e
 		ID:    name,
 		MType: gauge,
 	}
-	row := s.db.QueryRow(Select, name, gauge)
+	row := s.db.QueryRow(`select m.delta, m.value
+	from metrics m 
+	where m."name" =$1 and m."type" = $2;`, name, gauge)
 	var value sql.NullFloat64
 	var delta sql.NullInt64
 	err = row.Scan(&delta, &value)
 	if err != nil {
 		logger.Log.Info(err.Error())
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return result, false, nil
 		}
 		return result, false, err
@@ -109,9 +104,11 @@ func (s *PgStorage) Store(ctx context.Context, metric ...data.Metric) error {
 func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
 	result := data.Metric{
 		ID:    name,
-		MType: gauge,
+		MType: counter,
 	}
-	row := s.db.QueryRow(Select, name, counter)
+	row := s.db.QueryRow(`select m.delta, m.value
+	from metrics m 
+	where m."name" =$1 and m."type" = $2;`, name, counter)
 	var value sql.NullFloat64
 	var delta sql.NullInt64
 	err = row.Scan(&delta, &value)
@@ -129,7 +126,7 @@ func (s *PgStorage) GetCounter(name string) (metric data.Metric, exist bool, err
 
 func (s *PgStorage) GetMetrics() ([]data.Metric, error) {
 	result := make([]data.Metric, 0)
-	rows, err := s.db.Query(SelectAll)
+	rows, err := s.db.Query(`select m.name, m.type, m.delta, m.value from metrics m;`)
 
 	if err != nil {
 		return result, err
@@ -139,7 +136,7 @@ func (s *PgStorage) GetMetrics() ([]data.Metric, error) {
 		var m data.Metric
 		var value sql.NullFloat64
 		var delta sql.NullInt64
-		err = rows.Scan(&m.ID, &m.MType, &value, &delta)
+		err = rows.Scan(&m.ID, &m.MType, &delta, &value)
 		if err != nil {
 			return nil, err
 		}

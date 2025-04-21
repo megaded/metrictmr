@@ -2,10 +2,12 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/logger"
+	"go.uber.org/zap"
 )
 
 type Retry struct {
@@ -14,74 +16,61 @@ type Retry struct {
 	maxRetry int
 }
 
-func NewRetry(start int, step int, maxRetry int) Retry {
-	return Retry{start: time.Duration(start * int(time.Second)), step: time.Duration(step * int(time.Second)), maxRetry: maxRetry}
-}
-
 func (r *Retry) RetryAgent(ctx context.Context, action func() (*http.Response, error)) func() error {
 	rt := func() error {
-		resp, err := action()
-		if err != nil {
-			countRetry := 0
-			delay := r.start
-			t := time.NewTicker(r.start)
-			for {
-				select {
-				case <-ctx.Done():
-					return err
-				case <-t.C:
-					resp, err = action()
-					if err != nil {
-						logger.Log.Error(err.Error())
-						delay = delay + r.step
-						t.Reset(delay)
-						countRetry++
-						if countRetry == r.maxRetry {
-							return err
-						}
-
-					} else {
-						defer resp.Body.Close()
-						return nil
-					}
-				}
+		delay := r.start
+		for attempt := 0; attempt <= r.maxRetry; attempt++ {
+			resp, err := action()
+			if err == nil {
+				defer resp.Body.Close()
+				return nil
 			}
-		} else {
-			defer resp.Body.Close()
-		}
 
-		return err
+			if attempt == r.maxRetry {
+				return err
+			}
+
+			logger.Log.Error("retry failed", zap.Int("attempt", attempt), zap.Error(err))
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(r.step):
+				delay += r.step
+			}
+		}
+		return errors.New("unreachable retry state")
 	}
 	return rt
 }
 
+func NewRetry(start int, step int, maxRetry int) Retry {
+	return Retry{start: time.Duration(start * int(time.Second)), step: time.Duration(step * int(time.Second)), maxRetry: maxRetry}
+}
+
 func (r *Retry) Retry(ctx context.Context, action func() error) func() error {
 	rt := func() error {
-		err := action()
-		if err != nil {
-			logger.Log.Error(err.Error())
-			countRetry := 0
-			delay := r.start
-			t := time.NewTicker(r.start)
-			for {
-				select {
-				case <-ctx.Done():
-					return err
-				case <-t.C:
-					err = action()
-					if err != nil {
-						delay = delay + r.step
-						t.Reset(delay)
-						countRetry++
-						if countRetry == r.maxRetry {
-							return err
-						}
-					}
-					return nil
-				}
+		delay := r.start
+		for attempt := 0; attempt <= r.maxRetry; attempt++ {
+			err := action()
+			if err == nil {
+				return nil
+			}
+
+			if attempt == r.maxRetry {
+				return err
+			}
+
+			logger.Log.Error("retry failed", zap.Int("attempt", attempt), zap.Error(err))
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(r.step):
+				delay += r.step
 			}
 		}
-		return err
+		return errors.New("unreachable retry state")
 	}
 	return rt
 }
