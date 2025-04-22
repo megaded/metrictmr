@@ -65,8 +65,7 @@ func store(db *sql.DB, m ...data.Metric) error {
 	for _, v := range m {
 		_, err = tx.Exec(`insert into metrics as m (name, type, delta, value) values ($1, $2, $3, $4) 
 ON conflict(name ,type) do 
-update set value = EXCLUDED.value, delta = m.delta + EXCLUDED.delta
-where m.name = EXCLUDED.name and m.type = EXCLUDED.type;`, v.ID, v.MType, v.Delta, v.Value)
+update set value = EXCLUDED.value, delta = m.delta + EXCLUDED.delta;`, v.ID, v.MType, v.Delta, v.Value)
 		if err != nil {
 			logger.Log.Info(err.Error())
 			tx.Rollback()
