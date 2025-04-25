@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/megaded/metrictmr/internal/agent/config"
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
+	"github.com/megaded/metrictmr/internal/retry"
 )
 
 const (
@@ -26,42 +28,82 @@ type Configer interface {
 }
 
 type MetricSender interface {
-	StartSend()
+	StartSend(ctx context.Context)
 }
 
 type Agent struct {
-	Config Configer
+	Config     Configer
+	httpClient *AgentHTTPClient
 }
 
-func (a *Agent) StartSend() {
+type AgentHTTPClient struct {
+	httpClient *http.Client
+	retry      retry.Retry
+}
+
+func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) {
+	action := func() (*http.Response, error) {
+		return c.httpClient.Do(r)
+	}
+	f := c.retry.RetryAgent(ctx, action)
+	f()
+}
+
+func (a *Agent) StartSend(ctx context.Context) {
 	pollInterval := a.Config.GetPoolInterval()
 	reportInterval := a.Config.GetReportInterval()
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	client := &http.Client{Timeout: time.Second * 5}
-	var count int64 = 0
+	pollTimer := time.NewTicker(time.Second * time.Duration(pollInterval))
+	defer pollTimer.Stop()
+	reportTimer := time.NewTicker(time.Second * time.Duration(reportInterval))
+	defer reportTimer.Stop()
 	for {
-		if (count % pollInterval) == 0 {
+
+		select {
+		case <-pollTimer.C:
+			logger.Log.Info("Poll metric")
 			metrics = metricCollector.GetRunTimeMetrics()
+
+		case <-reportTimer.C:
+			logger.Log.Info("Send metric")
+			sendBulkMetric(ctx, metrics, addr, a.httpClient)
+		case <-ctx.Done():
+			return
 		}
-		if count%reportInterval == 0 {
-			for _, m := range metrics.GaugeMetrics {
-				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
-			}
-			for _, m := range metrics.CounterMetrics {
-				sendMetricJSON(client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
-			}
-		}
-		time.Sleep(time.Second)
-		count++
 	}
 }
 
 func CreateAgent() MetricSender {
 	a := &Agent{}
 	a.Config = config.GetConfig()
+	a.httpClient = &AgentHTTPClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
 	return a
+}
+
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
+	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
+		return
+	}
+	d := make([]data.Metric, 0, len(c.GaugeMetrics)+len(c.CounterMetrics))
+	for _, v := range c.GaugeMetrics {
+		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeGauge, Value: &v.Value})
+	}
+	for _, v := range c.CounterMetrics {
+		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
+	}
+	sendMetricJSON(ctx, client, addr, d...)
+
+}
+
+func sendMetrics(ctx context.Context, c collector.Metric, addr string, client *AgentHTTPClient) {
+	for _, m := range c.GaugeMetrics {
+		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
+	}
+	for _, m := range c.CounterMetrics {
+		sendMetricJSON(ctx, client, addr, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
+	}
 }
 
 func sendMetric(client *http.Client, addr string, metricType string, metricName collector.MetricName, value string) {
@@ -81,12 +123,18 @@ func sendMetric(client *http.Client, addr string, metricType string, metricName 
 	defer resp.Body.Close()
 }
 
-func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
+func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
+		logger.Log.Error(err.Error())
 		return
 	}
-	url := fmt.Sprintf("%s/update", addr)
+	method := "update"
+	if len(metric) > 1 {
+		method = "updates"
+	}
+
+	url := fmt.Sprintf("%s/%s", addr, method)
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
 	_, err = gzipWriter.Write(data)
@@ -96,19 +144,14 @@ func sendMetricJSON(client *http.Client, addr string, metric data.Metric) {
 		return
 	}
 	gzipWriter.Close()
-	req, err := http.NewRequest(http.MethodPost, url, &buf)
-	if err != nil {
-		logger.Log.Error(err.Error())
-		return
-	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-
-	resp, err := client.Do(req)
 	if err != nil {
 		logger.Log.Info(err.Error())
 		return
 	}
-
-	defer resp.Body.Close()
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	client.Do(ctx, req)
 }

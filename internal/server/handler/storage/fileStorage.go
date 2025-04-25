@@ -1,65 +1,73 @@
 package storage
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/data"
 	"github.com/megaded/metrictmr/internal/logger"
-	"go.uber.org/zap"
+	"github.com/megaded/metrictmr/internal/retry"
+	"github.com/megaded/metrictmr/internal/server/handler/config"
 )
 
 type FileStorage struct {
-	m        InMemoryStorage
+	m        Storager
 	filePath string
 	internal int
 	restore  bool
+	retry    retry.Retry
 }
 
-func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool) {
+func (s *FileStorage) GetGauge(name string) (metric data.Metric, exist bool, err error) {
 	return s.m.GetGauge(name)
 }
-func (s *FileStorage) Store(metric data.Metric) {
-	s.m.Store(metric)
-	if s.internal == 0 {
-		s.persistData()
+func (s *FileStorage) Store(ctx context.Context, metric ...data.Metric) error {
+	err := s.m.Store(ctx, metric...)
+	if err != nil {
+		return err
 	}
+	if s.internal == 0 {
+		return s.persistData(ctx)
+	}
+	return nil
 }
 
-func (s *FileStorage) GetCounter(name string) (metric data.Metric, exist bool) {
+func (s *FileStorage) GetCounter(name string) (metric data.Metric, exist bool, err error) {
 	return s.m.GetCounter(name)
 }
 
-func (s *FileStorage) GetGaugeMetrics() []data.Metric {
-	return s.m.GetGaugeMetrics()
+func (s *FileStorage) GetMetrics() ([]data.Metric, error) {
+	return s.m.GetMetrics()
 }
-func (s *FileStorage) GetCounterMetrics() []data.Metric {
-	return s.m.GetCounterMetrics()
+func (s *FileStorage) HealthCheck() bool {
+	return true
 }
 
-func NewFileStorage(internal int, fp string, restore bool) *FileStorage {
-	fs := FileStorage{m: NewInMemoryStorage(), internal: internal, filePath: fp, restore: restore}
+func NewFileStorage(ctx context.Context, cfg config.Config) *FileStorage {
+	fs := FileStorage{m: NewInMemoryStorage(), internal: *cfg.StoreInterval, filePath: cfg.FilePath, restore: *cfg.Restore, retry: retry.NewRetry(1, 2, 3)}
 	if fs.internal != 0 {
 		go func() {
-
-			count := 0
+			timer := time.NewTicker(time.Duration(*cfg.StoreInterval * int(time.Second)))
 			for {
-				if count%internal == 0 {
-					fs.persistData()
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+					fs.persistData(ctx)
 				}
-				time.Sleep(time.Second)
-				count++
 			}
 		}()
 	}
 	if fs.restore {
-		fs.restoreStorage()
+		fs.restoreStorage(ctx)
 	}
 	return &fs
 }
 
-func (s FileStorage) restoreStorage() {
+func (s FileStorage) restoreStorage(ctx context.Context) {
 	var metrics []data.Metric
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
@@ -72,42 +80,42 @@ func (s FileStorage) restoreStorage() {
 		logger.Log.Info(err.Error())
 		return
 	}
-	logger.Log.Info("Restore metric", zap.Int("count", len(metrics)))
 	for _, m := range metrics {
-		s.Store(m)
+		s.Store(ctx, m)
 	}
 }
 
-func (s *FileStorage) persistData() {
-	gaugeMetrics := s.m.GetGaugeMetrics()
-	counterMetrics := s.m.GetCounterMetrics()
-	storeData := make([]data.Metric, 0)
-	if len(gaugeMetrics) != 0 {
-		storeData = append(storeData, gaugeMetrics...)
+func (s *FileStorage) persistData(ctx context.Context) error {
+	metrics, err := s.m.GetMetrics()
+	if err != nil {
+		return err
 	}
-	if len(counterMetrics) != 0 {
-		storeData = append(storeData, counterMetrics...)
+
+	if len(metrics) == 0 {
+		return nil
 	}
-	if len(storeData) == 0 {
-		return
-	}
-	data, err := json.Marshal(storeData)
+	data, err := json.Marshal(metrics)
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return
+		return err
 	}
 	file, err := os.Create(s.filePath)
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return
+		return err
 	}
 	defer file.Close()
-	n, err := file.Write(data)
-	if err != nil {
-		logger.Log.Info(err.Error())
-		return
+	action := func() error {
+		d, err := file.Write(data)
+		if err != nil {
+			return err
+		}
+		if d != len(data) {
+			return errors.New("invalid write data")
+		}
+		defer file.Close()
+		return nil
 	}
-	if n != len(data) {
-		return
-	}
+	fn := s.retry.Retry(ctx, action)
+	return fn()
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/megaded/metrictmr/internal/logger"
@@ -16,8 +17,16 @@ type Server struct {
 	Address string
 }
 
-func (s *Server) Start() (err error) {
-	return http.ListenAndServe(s.Address, s.Handler)
+func (s *Server) Start(ctx context.Context) {
+	server := http.Server{Addr: s.Address, Handler: s.Handler}
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(ctx)
+	}()
+	err := server.ListenAndServe()
+	if err != nil {
+		panic(err)
+	}
 }
 
 type Configer interface {
@@ -25,15 +34,15 @@ type Configer interface {
 }
 
 type Listener interface {
-	Start() (err error)
+	Start(ctx context.Context)
 }
 
-func CreateServer() (s Listener) {
+func CreateServer(ctx context.Context) (s Listener) {
 	server := &Server{}
 	logger.SetupLogger("Info")
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
-	storage := storage.NewFileStorage(*serverConfig.StoreInterval, serverConfig.FilePath, *serverConfig.Restore)
+	storage := storage.CreateStorage(ctx, *serverConfig)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
 	return server
@@ -45,4 +54,5 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.String("path", c.FilePath))
 	logger.Log.Info(nConfig, zap.Bool("restore", *c.Restore))
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
+	logger.Log.Info(nConfig, zap.String("db conn string", c.DBConnString))
 }
