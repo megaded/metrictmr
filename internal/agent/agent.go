@@ -61,8 +61,10 @@ func (a *Agent) StartSend(ctx context.Context) {
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	var metrics collector.Metric
 	metricCollector := &collector.MetricCollector{}
-	pollTimer := time.NewTicker(time.Duration(pollInterval * int64(time.Second)))
+	pollTimer := time.NewTicker(time.Second * time.Duration(pollInterval))
+	defer pollTimer.Stop()
 	reportTimer := time.NewTicker(time.Second * time.Duration(reportInterval))
+	defer reportTimer.Stop()
 	for {
 
 		select {
