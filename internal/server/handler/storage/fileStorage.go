@@ -104,6 +104,7 @@ func (s *FileStorage) persistData(ctx context.Context) error {
 		logger.Log.Info(err.Error())
 		return err
 	}
+
 	defer file.Close()
 	action := func() error {
 		d, err := file.Write(data)
