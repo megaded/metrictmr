@@ -17,6 +17,7 @@ type Config struct {
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 	Key            string `env:"KEY"`
+	RateLimit      *int   `env:RATE_LIMIT`
 }
 
 func (c *Config) GetAddress() string {
@@ -35,6 +36,10 @@ func (c *Config) GetKey() string {
 	return c.Key
 }
 
+func (c *Config) GetRateLimit() int {
+	return *c.RateLimit
+}
+
 func GetConfig() *Config {
 	config := &Config{}
 	setEnvParam(config)
@@ -51,6 +56,7 @@ func setCmdParam(c *Config) {
 	reportInterval := flag.Int64("r", reportInterval, "reportInterval")
 	pollInterval := flag.Int64("p", pollInterval, "pollInterval")
 	key := flag.String("k", "", "key")
+	rateLimit := flag.Int("l", 10, "rate limit")
 	flag.Parse()
 	if c.Address == "" {
 		c.Address = *address
@@ -63,5 +69,8 @@ func setCmdParam(c *Config) {
 	}
 	if c.Key == "" {
 		c.Key = *key
+	}
+	if c.RateLimit == nil {
+		c.RateLimit = rateLimit
 	}
 }
