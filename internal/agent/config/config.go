@@ -17,7 +17,7 @@ type Config struct {
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 	Key            string `env:"KEY"`
-	RateLimit      *int   `env:RATE_LIMIT`
+	RateLimit      *int   `env:"RATE_LIMIT"`
 }
 
 func (c *Config) GetAddress() string {
