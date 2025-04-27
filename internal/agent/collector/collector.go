@@ -3,6 +3,10 @@ package collector
 import (
 	"math/rand/v2"
 	"runtime"
+	"sync"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type MetricName string
@@ -27,48 +31,94 @@ type MetricCollector struct {
 }
 
 const (
-	Alloc         = MetricName("Alloc")
-	BuckHashSys   = MetricName("BuckHashSys")
-	Frees         = MetricName("Frees")
-	GCCPUFraction = MetricName("GCCPUFraction")
-	GCSys         = MetricName("GCSys")
-	HeapAlloc     = MetricName("HeapAlloc")
-	HeapIdle      = MetricName("HeapIdle")
-	HeapInuse     = MetricName("HeapInuse")
-	HeapObjects   = MetricName("HeapObjects")
-	HeapReleased  = MetricName("HeapReleased")
-	HeapSys       = MetricName("HeapSys")
-	LastGC        = MetricName("LastGC")
-	Lookups       = MetricName("Lookups")
-	MCacheInuse   = MetricName("MCacheInuse")
-	MCacheSys     = MetricName("MCacheSys")
-	MSpanInuse    = MetricName("MSpanInuse")
-	MSpanSys      = MetricName("MSpanSys")
-	Mallocs       = MetricName("Mallocs")
-	NextGC        = MetricName("NextGC")
-	NumForcedGC   = MetricName("NumForcedGC")
-	NumGC         = MetricName("NumGC")
-	OtherSys      = MetricName("OtherSys")
-	PauseTotalNs  = MetricName("PauseTotalNs")
-	StackInuse    = MetricName("StackInuse")
-	StackSys      = MetricName("StackSys")
-	Sys           = MetricName("Sys")
-	TotalAlloc    = MetricName("TotalAlloc")
-	PollCount     = MetricName("PollCount")
-	RandomValue   = MetricName("RandomValue")
+	Alloc           = MetricName("Alloc")
+	BuckHashSys     = MetricName("BuckHashSys")
+	Frees           = MetricName("Frees")
+	GCCPUFraction   = MetricName("GCCPUFraction")
+	GCSys           = MetricName("GCSys")
+	HeapAlloc       = MetricName("HeapAlloc")
+	HeapIdle        = MetricName("HeapIdle")
+	HeapInuse       = MetricName("HeapInuse")
+	HeapObjects     = MetricName("HeapObjects")
+	HeapReleased    = MetricName("HeapReleased")
+	HeapSys         = MetricName("HeapSys")
+	LastGC          = MetricName("LastGC")
+	Lookups         = MetricName("Lookups")
+	MCacheInuse     = MetricName("MCacheInuse")
+	MCacheSys       = MetricName("MCacheSys")
+	MSpanInuse      = MetricName("MSpanInuse")
+	MSpanSys        = MetricName("MSpanSys")
+	Mallocs         = MetricName("Mallocs")
+	NextGC          = MetricName("NextGC")
+	NumForcedGC     = MetricName("NumForcedGC")
+	NumGC           = MetricName("NumGC")
+	OtherSys        = MetricName("OtherSys")
+	PauseTotalNs    = MetricName("PauseTotalNs")
+	StackInuse      = MetricName("StackInuse")
+	StackSys        = MetricName("StackSys")
+	Sys             = MetricName("Sys")
+	TotalAlloc      = MetricName("TotalAlloc")
+	PollCount       = MetricName("PollCount")
+	RandomValue     = MetricName("RandomValue")
+	FreeMemory      = MetricName("FreeMemory")
+	TotalMemory     = MetricName("TotalMemory")
+	CPUutilization1 = MetricName("CPUutilization1")
 )
 
 func (collector *MetricCollector) GetRunTimeMetrics() Metric {
-	runTimeMetrics := &runtime.MemStats{}
-	runtime.ReadMemStats(runTimeMetrics)
-	defer func() { collector.PollCount++ }()
-	return Metric{GaugeMetrics: GetGaugeMetrics(runTimeMetrics), CounterMetrics: []Counter{
+	var mutex sync.Mutex
+	defer func() {
+		mutex.Lock()
+		collector.PollCount++
+		mutex.Unlock()
+	}()
+	return Metric{GaugeMetrics: GetGaugeMetrics(), CounterMetrics: []Counter{
 		{Name: PollCount, Value: int64(collector.PollCount)},
 	}}
 }
 
-func GetGaugeMetrics(runTimeMetrics *runtime.MemStats) []GaugeMetric {
-	return []GaugeMetric{
+func GetGaugeMetrics() []GaugeMetric {
+	return fanOutMetrics(GetCommonGaugeMetrics(), GetAdditionalGaugeMetrics())
+}
+
+func GetAdditionalGaugeMetrics() chan []GaugeMetric {
+	v, _ := mem.VirtualMemory()
+	c, _ := cpu.Counts(false)
+	m := []GaugeMetric{{Name: FreeMemory, Value: float64(v.Free)}, {
+		Name: TotalMemory, Value: float64(v.Total),
+	}, {Name: CPUutilization1, Value: float64(c)}}
+	ch := make(chan []GaugeMetric)
+	go func() {
+		defer close(ch)
+		ch <- m
+	}()
+	return ch
+}
+
+func fanOutMetrics(ch ...chan []GaugeMetric) []GaugeMetric {
+	var wg sync.WaitGroup
+	metrics := make([]GaugeMetric, 0)
+	for _, v := range ch {
+		iv := v
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+			}()
+			for m := range iv {
+				metrics = append(metrics, m...)
+			}
+		}()
+	}
+	wg.Wait()
+	return metrics
+}
+
+func GetCommonGaugeMetrics() chan []GaugeMetric {
+	runTimeMetrics := &runtime.MemStats{}
+	runtime.ReadMemStats(runTimeMetrics)
+	ch := make(chan []GaugeMetric)
+	m := []GaugeMetric{
 		{Name: Alloc, Value: float64(runTimeMetrics.Alloc)},
 		{Name: BuckHashSys, Value: float64(runTimeMetrics.BuckHashSys)},
 		{Name: Frees, Value: float64(runTimeMetrics.Frees)},
@@ -98,4 +148,9 @@ func GetGaugeMetrics(runTimeMetrics *runtime.MemStats) []GaugeMetric {
 		{Name: TotalAlloc, Value: float64(runTimeMetrics.TotalAlloc)},
 		{Name: RandomValue, Value: rand.Float64() * 1000},
 	}
+	go func() {
+		defer close(ch)
+		ch <- m
+	}()
+	return ch
 }

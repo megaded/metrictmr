@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/signal"
 	"syscall"
 
@@ -10,9 +12,17 @@ import (
 )
 
 func main() {
+	for i, v := range os.Args[1:] {
+		fmt.Println(i+1, v)
+	}
 	logger.SetupLogger("Info")
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		cancel()
+	}()
 	a := agent.CreateAgent()
 	a.StartSend(ctx)
 }
