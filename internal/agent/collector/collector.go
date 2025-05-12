@@ -74,10 +74,10 @@ const (
 
 func (c *MetricCollector) GetRunTimeMetrics() Metric {
 	defer func() {
-		с.IncreasePollCount()
+		c.IncreasePollCount()
 	}()
 	return Metric{GaugeMetrics: GetGaugeMetrics(), CounterMetrics: []Counter{
-		{Name: PollCount, Value: int64(с.PollCount)},
+		{Name: PollCount, Value: int64(c.PollCount)},
 	}}
 }
 
