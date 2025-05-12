@@ -72,12 +72,12 @@ const (
 	CPUutilization1 = MetricName("CPUutilization1")
 )
 
-func (collector *MetricCollector) GetRunTimeMetrics() Metric {
+func (с *MetricCollector) GetRunTimeMetrics() Metric {
 	defer func() {
-		collector.IncreasePollCount()
+		с.IncreasePollCount()
 	}()
 	return Metric{GaugeMetrics: GetGaugeMetrics(), CounterMetrics: []Counter{
-		{Name: PollCount, Value: int64(collector.PollCount)},
+		{Name: PollCount, Value: int64(с.PollCount)},
 	}}
 }
 
