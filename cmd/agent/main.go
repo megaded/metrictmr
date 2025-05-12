@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,9 +11,6 @@ import (
 )
 
 func main() {
-	for i, v := range os.Args[1:] {
-		fmt.Println(i+1, v)
-	}
 	logger.SetupLogger("Info")
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {

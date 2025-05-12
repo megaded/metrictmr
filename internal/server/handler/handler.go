@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,7 +16,6 @@ import (
 
 type handler struct {
 	storage storage.Storager
-	key     string
 }
 
 func (h *handler) getMetricListHandler() func(w http.ResponseWriter, r *http.Request) {
@@ -198,8 +196,6 @@ func (h *handler) getSaveJSONHandler() func(w http.ResponseWriter, r *http.Reque
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
 		if err != nil {
-			bodyBytes, err := io.ReadAll(r.Body)
-			logger.Log.Info(string(bodyBytes))
 			w.WriteHeader(http.StatusBadRequest)
 			logger.Log.Info(err.Error())
 			w.Write([]byte(err.Error()))
@@ -262,8 +258,6 @@ func (h *handler) getSaveBulkJSONHandler() func(w http.ResponseWriter, r *http.R
 		var metric []data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
 		if err != nil {
-			bodyBytes, err := io.ReadAll(r.Body)
-			logger.Log.Info(string(bodyBytes))
 			w.WriteHeader(http.StatusBadRequest)
 			logger.Log.Info(err.Error())
 			w.Write([]byte(err.Error()))

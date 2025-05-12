@@ -110,8 +110,8 @@ func (s *FileStorage) persistData(ctx context.Context) error {
 	action := func() error {
 		var mutex sync.Mutex
 		mutex.Lock()
+		defer mutex.Unlock()
 		d, err := file.Write(data)
-		mutex.Unlock()
 		if err != nil {
 			return err
 		}

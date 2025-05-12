@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/agent/collector"
@@ -19,6 +18,7 @@ import (
 	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/retry"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -50,38 +50,27 @@ type AgentHTTPClient struct {
 	key        string
 }
 
-func (c *AgentHTTPClient) Do(ctx context.Context, ech chan error, r *http.Request) {
+func (c *AgentHTTPClient) Do(ctx context.Context, eg *errgroup.Group, r *http.Request) {
 	action := func() (*http.Response, error) {
 		return c.httpClient.Do(r)
 	}
 	f := c.retry.RetryAgent(ctx, action)
-	err := f()
-	if err != nil {
-		go func() {
-			defer close(ech)
-			ech <- err
-			logger.Log.Error("Ошибка при отправки метрик", zap.Error(err))
-		}()
-	}
+	eg.Go(f)
 }
 
 func (a *Agent) StartSend(ctx context.Context) {
-	ctxCancel, cancelFunc := context.WithCancel(ctx)
 	pollInterval := a.Config.GetPoolInterval()
-	reportInterval := a.Config.GetReportInterval()
 	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
 	key := a.Config.GetKey()
 	rateLimit := a.Config.GetRateLimit()
 	mch := make(chan collector.Metric, rateLimit)
 	metricCollector := &collector.MetricCollector{}
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	ech := make(chan error)
-	sendMetric := func(ct context.Context, ec chan error, mch chan collector.Metric) {
-		time.Sleep(time.Second * time.Duration(reportInterval))
+	group, ctxCancel := errgroup.WithContext(ctx)
+
+	sendMetric := func(ct context.Context, eg *errgroup.Group, mch chan collector.Metric) {
 		for w := 0; w <= rateLimit; w++ {
-			go worker(ctxCancel, ech, reportInterval, addr, key, a.httpClient, mch)
+			go worker(ctxCancel, eg, addr, key, a.httpClient, mch)
 		}
 	}
 
@@ -89,7 +78,6 @@ func (a *Agent) StartSend(ctx context.Context) {
 		for {
 			select {
 			case <-ct.Done():
-				wg.Done()
 				close(mch)
 				logger.Log.Info("Вышли Collect metric")
 				return
@@ -101,16 +89,10 @@ func (a *Agent) StartSend(ctx context.Context) {
 		}
 	}
 	go collectMetrics(ctxCancel, mch)
-	go sendMetric(ctxCancel, ech, mch)
-	go func() {
-		defer wg.Done()
-		for e := range ech {
-			logger.Log.Error("Agent error", zap.Error(e))
-			cancelFunc()
-			return
-		}
-	}()
-	wg.Wait()
+	go sendMetric(ctxCancel, group, mch)
+	if err := group.Wait(); err != nil {
+		logger.Log.Error("Agent error", zap.Error(err))
+	}
 }
 
 func CreateAgent() MetricSender {
@@ -120,7 +102,7 @@ func CreateAgent() MetricSender {
 	return a
 }
 
-func worker(ctx context.Context, ec chan error, delay int64, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) {
+func worker(ctx context.Context, eg *errgroup.Group, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,15 +111,14 @@ func worker(ctx context.Context, ec chan error, delay int64, addr string, key st
 			{
 				for m := range jobs {
 					logger.Log.Info("Send metric")
-					sendBulkMetric(ctx, ec, m, addr, key, client)
-					time.Sleep(time.Second * time.Duration(delay))
+					sendBulkMetric(ctx, eg, m, addr, key, client)
 				}
 			}
 		}
 	}
 }
 
-func sendBulkMetric(ctx context.Context, ech chan error, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
+func sendBulkMetric(ctx context.Context, eg *errgroup.Group, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		logger.Log.Info("Отправка метрик. Метрик нет")
 		return
@@ -149,36 +130,10 @@ func sendBulkMetric(ctx context.Context, ech chan error, c collector.Metric, add
 	for _, v := range c.CounterMetrics {
 		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
 	}
-	sendMetricJSON(ctx, ech, client, addr, key, d...)
+	sendMetricJSON(ctx, eg, client, addr, key, d...)
 }
 
-func sendMetrics(ctx context.Context, ech chan error, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
-	for _, m := range c.GaugeMetrics {
-		sendMetricJSON(ctx, ech, client, addr, key, data.Metric{ID: string(m.Name), MType: gauge, Value: &m.Value})
-	}
-	for _, m := range c.CounterMetrics {
-		sendMetricJSON(ctx, ech, client, addr, key, data.Metric{ID: string(m.Name), MType: counter, Delta: &m.Value})
-	}
-}
-
-func sendMetric(client *http.Client, addr string, metricType string, metricName collector.MetricName, value string) {
-	url := fmt.Sprintf("%s/update/%s/%s/%s", addr, metricType, metricName, value)
-	req, err := http.NewRequest(http.MethodPost, url, nil)
-	req.Header.Set("Content-type", "text-plain")
-	req.Header.Set("Content-Length", "0")
-	if err != nil {
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return
-	}
-
-	defer resp.Body.Close()
-}
-
-func sendMetricJSON(ctx context.Context, ech chan error, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) {
+func sendMetricJSON(ctx context.Context, eg *errgroup.Group, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error(err.Error())
@@ -206,13 +161,11 @@ func sendMetricJSON(ctx context.Context, ech chan error, client *AgentHTTPClient
 		hash := hex.EncodeToString(h.Sum(nil))
 		req.Header.Set(hashHeader, hash)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {
 		logger.Log.Info(err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	client.Do(ctx, ech, req)
+	client.Do(ctx, eg, req)
 }

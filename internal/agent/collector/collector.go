@@ -30,6 +30,13 @@ type MetricCollector struct {
 	PollCount int
 }
 
+func (c *MetricCollector) IncreasePollCount() {
+	var mutex sync.Mutex
+	mutex.Lock()
+	defer mutex.Unlock()
+	c.PollCount++
+}
+
 const (
 	Alloc           = MetricName("Alloc")
 	BuckHashSys     = MetricName("BuckHashSys")
@@ -66,11 +73,8 @@ const (
 )
 
 func (collector *MetricCollector) GetRunTimeMetrics() Metric {
-	var mutex sync.Mutex
 	defer func() {
-		mutex.Lock()
-		collector.PollCount++
-		mutex.Unlock()
+		collector.IncreasePollCount()
 	}()
 	return Metric{GaugeMetrics: GetGaugeMetrics(), CounterMetrics: []Counter{
 		{Name: PollCount, Value: int64(collector.PollCount)},
@@ -78,46 +82,10 @@ func (collector *MetricCollector) GetRunTimeMetrics() Metric {
 }
 
 func GetGaugeMetrics() []GaugeMetric {
-	return fanOutMetrics(GetCommonGaugeMetrics(), GetAdditionalGaugeMetrics())
-}
-
-func GetAdditionalGaugeMetrics() chan []GaugeMetric {
-	v, _ := mem.VirtualMemory()
-	c, _ := cpu.Counts(false)
-	m := []GaugeMetric{{Name: FreeMemory, Value: float64(v.Free)}, {
-		Name: TotalMemory, Value: float64(v.Total),
-	}, {Name: CPUutilization1, Value: float64(c)}}
-	ch := make(chan []GaugeMetric)
-	go func() {
-		defer close(ch)
-		ch <- m
-	}()
-	return ch
-}
-
-func fanOutMetrics(ch ...chan []GaugeMetric) []GaugeMetric {
-	var wg sync.WaitGroup
-	metrics := make([]GaugeMetric, 0)
-	for _, v := range ch {
-		iv := v
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-			}()
-			for m := range iv {
-				metrics = append(metrics, m...)
-			}
-		}()
-	}
-	wg.Wait()
-	return metrics
-}
-
-func GetCommonGaugeMetrics() chan []GaugeMetric {
 	runTimeMetrics := &runtime.MemStats{}
 	runtime.ReadMemStats(runTimeMetrics)
-	ch := make(chan []GaugeMetric)
+	v, _ := mem.VirtualMemory()
+	c, _ := cpu.Counts(false)
 	m := []GaugeMetric{
 		{Name: Alloc, Value: float64(runTimeMetrics.Alloc)},
 		{Name: BuckHashSys, Value: float64(runTimeMetrics.BuckHashSys)},
@@ -147,10 +115,9 @@ func GetCommonGaugeMetrics() chan []GaugeMetric {
 		{Name: Sys, Value: float64(runTimeMetrics.Sys)},
 		{Name: TotalAlloc, Value: float64(runTimeMetrics.TotalAlloc)},
 		{Name: RandomValue, Value: rand.Float64() * 1000},
+		{Name: FreeMemory, Value: float64(v.Free)},
+		{Name: TotalMemory, Value: float64(v.Total)},
+		{Name: CPUutilization1, Value: float64(c)},
 	}
-	go func() {
-		defer close(ch)
-		ch <- m
-	}()
-	return ch
+	return m
 }
