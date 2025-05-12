@@ -72,7 +72,7 @@ const (
 	CPUutilization1 = MetricName("CPUutilization1")
 )
 
-func (с *MetricCollector) GetRunTimeMetrics() Metric {
+func (c *MetricCollector) GetRunTimeMetrics() Metric {
 	defer func() {
 		с.IncreasePollCount()
 	}()
