@@ -50,12 +50,11 @@ type AgentHTTPClient struct {
 	key        string
 }
 
-func (c *AgentHTTPClient) Do(ctx context.Context, eg *errgroup.Group, r *http.Request) {
+func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) error {
 	action := func() (*http.Response, error) {
 		return c.httpClient.Do(r)
 	}
-	f := c.retry.RetryAgent(ctx, action)
-	eg.Go(f)
+	return c.retry.RetryAgent(ctx, action)()
 }
 
 func (a *Agent) StartSend(ctx context.Context) {
@@ -68,28 +67,36 @@ func (a *Agent) StartSend(ctx context.Context) {
 
 	group, ctxCancel := errgroup.WithContext(ctx)
 
-	sendMetric := func(ct context.Context, eg *errgroup.Group, mch chan collector.Metric) {
-		for w := 0; w <= rateLimit; w++ {
-			go worker(ctxCancel, eg, addr, key, a.httpClient, mch)
-		}
-	}
+	for w := 0; w <= rateLimit; w++ {
+		group.Go(func() error {
+			return worker(ctxCancel, addr, key, a.httpClient, mch)
+		})
 
-	collectMetrics := func(ct context.Context, mch chan collector.Metric) {
+	}
+	group.Go(func() error {
+		ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+		defer ticker.Stop()
+		defer close(mch)
 		for {
 			select {
-			case <-ct.Done():
-				close(mch)
-				logger.Log.Info("Вышли Collect metric")
-				return
-			case <-time.After(time.Second * time.Duration(pollInterval)):
-				logger.Log.Info("Collect metric")
+			case <-ctxCancel.Done():
+				return ctxCancel.Err()
+			case <-ticker.C:
 				m := metricCollector.GetRunTimeMetrics()
-				mch <- m
+				select {
+				case mch <- m:
+				case <-ctxCancel.Done():
+					return ctxCancel.Err()
+				}
+
 			}
 		}
+	})
+
+	collectMetrics := func(ct context.Context, mch chan collector.Metric) {
+
 	}
 	go collectMetrics(ctxCancel, mch)
-	go sendMetric(ctxCancel, group, mch)
 	if err := group.Wait(); err != nil {
 		logger.Log.Error("Agent error", zap.Error(err))
 	}
@@ -102,26 +109,26 @@ func CreateAgent() MetricSender {
 	return a
 }
 
-func worker(ctx context.Context, eg *errgroup.Group, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) {
+func worker(ctx context.Context, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		default:
-			{
-				for m := range jobs {
-					logger.Log.Info("Send metric")
-					sendBulkMetric(ctx, eg, m, addr, key, client)
-				}
+			return ctx.Err()
+		case m, ok := <-jobs:
+			if !ok {
+				return nil
+			}
+			if err := sendBulkMetric(ctx, m, addr, key, client); err != nil {
+				logger.Log.Warn("send metric error", zap.Error(err))
 			}
 		}
 	}
 }
 
-func sendBulkMetric(ctx context.Context, eg *errgroup.Group, c collector.Metric, addr string, key string, client *AgentHTTPClient) {
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, key string, client *AgentHTTPClient) error {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		logger.Log.Info("Отправка метрик. Метрик нет")
-		return
+		return nil
 	}
 	d := make([]data.Metric, 0, len(c.GaugeMetrics)+len(c.CounterMetrics))
 	for _, v := range c.GaugeMetrics {
@@ -130,14 +137,14 @@ func sendBulkMetric(ctx context.Context, eg *errgroup.Group, c collector.Metric,
 	for _, v := range c.CounterMetrics {
 		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
 	}
-	sendMetricJSON(ctx, eg, client, addr, key, d...)
+	return sendMetricJSON(ctx, client, addr, key, d...)
 }
 
-func sendMetricJSON(ctx context.Context, eg *errgroup.Group, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) {
+func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) error {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error(err.Error())
-		return
+		return err
 	}
 	method := "update"
 	if len(metric) > 1 {
@@ -151,7 +158,7 @@ func sendMetricJSON(ctx context.Context, eg *errgroup.Group, client *AgentHTTPCl
 
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return
+		return err
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
@@ -163,9 +170,9 @@ func sendMetricJSON(ctx context.Context, eg *errgroup.Group, client *AgentHTTPCl
 	}
 	if err != nil {
 		logger.Log.Info(err.Error())
-		return
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
-	client.Do(ctx, eg, req)
+	return client.Do(ctx, req)
 }

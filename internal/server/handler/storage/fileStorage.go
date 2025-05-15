@@ -57,7 +57,10 @@ func NewFileStorage(ctx context.Context, cfg config.Config) *FileStorage {
 				case <-ctx.Done():
 					return
 				case <-timer.C:
+					var mutex sync.Mutex
+					mutex.Lock()
 					fs.persistData(ctx)
+					mutex.Unlock()
 				}
 			}
 		}()
@@ -108,9 +111,6 @@ func (s *FileStorage) persistData(ctx context.Context) error {
 
 	defer file.Close()
 	action := func() error {
-		var mutex sync.Mutex
-		mutex.Lock()
-		defer mutex.Unlock()
 		d, err := file.Write(data)
 		if err != nil {
 			return err
