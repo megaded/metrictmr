@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/megaded/metrictmr/internal/data"
@@ -56,7 +57,10 @@ func NewFileStorage(ctx context.Context, cfg config.Config) *FileStorage {
 				case <-ctx.Done():
 					return
 				case <-timer.C:
+					var mutex sync.Mutex
+					mutex.Lock()
 					fs.persistData(ctx)
+					mutex.Unlock()
 				}
 			}
 		}()
@@ -104,6 +108,7 @@ func (s *FileStorage) persistData(ctx context.Context) error {
 		logger.Log.Info(err.Error())
 		return err
 	}
+
 	defer file.Close()
 	action := func() error {
 		d, err := file.Write(data)
