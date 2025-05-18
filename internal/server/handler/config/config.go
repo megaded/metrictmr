@@ -19,6 +19,7 @@ type Config struct {
 	FilePath      string `env:"FILE_STORAGE_PATH"`
 	Restore       *bool  `env:"RESTORE,init"`
 	DBConnString  string `env:"DATABASE_DSN"`
+	Key           string `env:"KEY"`
 }
 
 func (c *Config) GetAddress() string {
@@ -41,24 +42,29 @@ func setEnvParam(c *Config) {
 }
 
 func setCmdParam(c *Config) {
+	address := flag.String("a", defaultAddr, "server endpoint")
+	dBConnString := flag.String("d", "", "db conn string")
+	storeInterval := flag.Int("i", defaultStoreInternal, "store internal")
+	filePath := flag.String("f", defaultFilePath, "file path")
+	restore := flag.Bool("r", defaultRestore, "restore")
+	key := flag.String("k", "", "key")
+	flag.Parse()
 	if c.Address == "" {
-		flag.StringVar(&c.Address, "a", defaultAddr, "server endpoint")
+		c.Address = *address
 	}
 	if c.DBConnString == "" {
-		flag.StringVar(&c.DBConnString, "d", "", "db conn string")
+		c.DBConnString = *dBConnString
 	}
 	if c.StoreInterval == nil {
-		internal := 0
-		c.StoreInterval = &internal
-		flag.IntVar(c.StoreInterval, "i", defaultStoreInternal, "store internal")
+		c.StoreInterval = storeInterval
 	}
 	if c.FilePath == "" {
-		flag.StringVar(&c.FilePath, "f", defaultFilePath, "file path")
+		c.FilePath = *filePath
 	}
 	if c.Restore == nil {
-		restore := false
-		c.Restore = &restore
-		flag.BoolVar(c.Restore, "r", defaultRestore, "restore")
+		c.Restore = restore
 	}
-	flag.Parse()
+	if c.Key == "" {
+		c.Key = *key
+	}
 }
