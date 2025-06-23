@@ -54,7 +54,7 @@ func TestInMemoryStorage_Store(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{"store", NewInMemoryStorage(), args{ctx: context.TODO(), metric: make([]data.Metric, 1, 1)}, false},
+		{"store", NewInMemoryStorage(), args{ctx: context.TODO(), metric: make([]data.Metric, 1)}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
