@@ -34,5 +34,8 @@ func Example() {
 	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodPost, url, bytes.NewBuffer(data))
 	client := http.Client{}
 	req.Header.Set("Content-Type", "application/json")
-	client.Do(req)
+	res, err := client.Do(req)
+	if err == nil {
+		defer res.Body.Close()
+	}
 }
