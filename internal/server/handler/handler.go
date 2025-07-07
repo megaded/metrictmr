@@ -1,3 +1,8 @@
+// Методы для работы с метриками
+// Поддерживает два типа метрик gauge и counter
+//
+// gauge чисто с плавающей точной
+// counter целое положительное число
 package handler
 
 import (
@@ -10,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/megaded/metrictmr/internal/data"
-	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler/storage"
 )
 
@@ -18,6 +22,7 @@ type handler struct {
 	storage storage.Storager
 }
 
+// Возвращает страницу со списком метрик
 func (h *handler) getMetricListHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b := new(bytes.Buffer)
@@ -42,6 +47,7 @@ func (h *handler) getMetricListHandler() func(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// Пинг к БД
 func (h *handler) getPingDBHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ping := h.storage.HealthCheck()
@@ -54,6 +60,7 @@ func (h *handler) getPingDBHandler() func(w http.ResponseWriter, r *http.Request
 
 }
 
+// Получение метрики по имени
 func (h *handler) getMetricHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mType := chi.URLParam(r, typeParam)
@@ -89,6 +96,7 @@ func (h *handler) getMetricHandler() func(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// Получение метрики по имени
 func (h *handler) getMetricJSONHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
@@ -140,6 +148,7 @@ func (h *handler) getMetricJSONHandler() func(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// Сохранение метрики
 func (h *handler) getSaveHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mName := chi.URLParam(r, nameParam)
@@ -191,13 +200,13 @@ func (h *handler) getSaveHandler() func(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// Сохранение метрики
 func (h *handler) getSaveJSONHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			logger.Log.Info(err.Error())
 			w.Write([]byte(err.Error()))
 			return
 		}
@@ -220,7 +229,6 @@ func (h *handler) getSaveJSONHandler() func(w http.ResponseWriter, r *http.Reque
 			}
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {
-				logger.Log.Info(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -241,7 +249,6 @@ func (h *handler) getSaveJSONHandler() func(w http.ResponseWriter, r *http.Reque
 			}
 			resp, err = json.Marshal(storedMetric)
 			if err != nil {
-				logger.Log.Info(err.Error())
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -253,13 +260,13 @@ func (h *handler) getSaveJSONHandler() func(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// Сохранение списка метрик
 func (h *handler) getSaveBulkJSONHandler() func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var metric []data.Metric
 		err := json.NewDecoder(r.Body).Decode(&metric)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			logger.Log.Info(err.Error())
 			w.Write([]byte(err.Error()))
 			return
 		}
