@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/caarlos0/env"
@@ -44,11 +43,14 @@ func GetConfig() *Config {
 	flag.Parse()
 	if configPath != "" {
 		data, err := readJSONFile(configPath)
-		if err == nil {
-			err = json.Unmarshal(data, &config)
-			if err == nil {
-				logger.Log.Fatal(err.Error())
-			}
+		if err != nil {
+			logger.Log.Error(err.Error())
+			panic(err)
+		}
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			logger.Log.Error(err.Error())
+			panic(err)
 		}
 	}
 	setEnvParam(config)
@@ -93,7 +95,7 @@ func readJSONFile(filePath string) ([]byte, error) {
 		return nil, fmt.Errorf("файл не найден: %s", filePath)
 	}
 
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка при чтении файла: %w", err)
 	}

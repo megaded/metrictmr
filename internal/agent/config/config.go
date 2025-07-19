@@ -46,7 +46,7 @@ func (c *Config) GetRateLimit() int {
 }
 
 func (c *Config) GetCryptoKeyPath() string {
-	return *&c.CryptoKey
+	return c.CryptoKey
 }
 
 func GetConfig() *Config {
