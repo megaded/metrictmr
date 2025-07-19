@@ -8,6 +8,13 @@ import (
 
 	"github.com/megaded/metrictmr/internal/agent"
 	"github.com/megaded/metrictmr/internal/logger"
+	"go.uber.org/zap"
+)
+
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
 )
 
 func main() {
@@ -19,6 +26,11 @@ func main() {
 		<-sigChan
 		cancel()
 	}()
+	logger.Log.Info("Build information",
+		zap.String("version", buildVersion),
+		zap.String("date", buildDate),
+		zap.String("commit", buildCommit),
+	)
 	a := agent.CreateAgent()
 	a.StartSend(ctx)
 }

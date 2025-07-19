@@ -6,7 +6,15 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server"
+	"go.uber.org/zap"
+)
+
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
 )
 
 func main() {
@@ -17,6 +25,11 @@ func main() {
 		<-sigChan
 		cancel()
 	}()
+	logger.Log.Info("Build information",
+		zap.String("version", buildVersion),
+		zap.String("date", buildDate),
+		zap.String("commit", buildCommit),
+	)
 	s := server.CreateServer(ctx)
 	s.Start(ctx)
 }
