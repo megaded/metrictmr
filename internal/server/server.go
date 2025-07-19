@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/megaded/metrictmr/internal/logger"
 	"github.com/megaded/metrictmr/internal/server/handler"
@@ -13,8 +14,10 @@ import (
 )
 
 type Server struct {
-	Handler http.Handler
-	Address string
+	Handler   http.Handler
+	Address   string
+	Cert      string
+	PublicKey string
 }
 
 func (s *Server) Start(ctx context.Context) {
@@ -23,9 +26,16 @@ func (s *Server) Start(ctx context.Context) {
 		<-ctx.Done()
 		server.Shutdown(ctx)
 	}()
-	err := server.ListenAndServe()
-	if err != nil {
-		panic(err)
+	if s.Cert != "" && s.PublicKey != "" {
+		err := server.ListenAndServeTLS(s.Cert, s.PublicKey)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		err := server.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -42,9 +52,15 @@ func CreateServer(ctx context.Context) (s Listener) {
 	logger.SetupLogger("Info")
 	serverConfig := config.GetConfig()
 	logConfig(*serverConfig)
+	cert, publicKey, err := getFilesFromPath(serverConfig.CryptoKey)
+	if err == nil {
+		server.Cert = cert
+		server.PublicKey = publicKey
+	}
 	storage := storage.CreateStorage(ctx, *serverConfig)
 	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
 	server.Address = serverConfig.Address
+
 	return server
 }
 
@@ -56,4 +72,26 @@ func logConfig(c config.Config) {
 	logger.Log.Info(nConfig, zap.Int("internal", *c.StoreInterval))
 	logger.Log.Info(nConfig, zap.String("db conn string", c.DBConnString))
 	logger.Log.Info(nConfig, zap.String("key", c.Key))
+}
+
+func getFilesFromPath(cryptoPath string) (string, string, error) {
+	files, err := os.ReadDir(cryptoPath)
+	if err != nil {
+		return "", "", err
+	}
+
+	var cert, key string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		if file.Name() == "certificate.pem" {
+			cert = cryptoPath + "/certificate.pem"
+		}
+		if file.Name() == "private.key" {
+			key = cryptoPath + "/private.key"
+		}
+	}
+
+	return cert, key, nil
 }

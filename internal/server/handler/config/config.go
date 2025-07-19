@@ -1,9 +1,14 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"os"
 
 	"github.com/caarlos0/env"
+	"github.com/megaded/metrictmr/internal/logger"
 )
 
 const (
@@ -14,12 +19,13 @@ const (
 )
 
 type Config struct {
-	Address       string `env:"ADDRESS"`
-	StoreInterval *int   `env:"STORE_INTERVAL"`
-	FilePath      string `env:"FILE_STORAGE_PATH"`
-	Restore       *bool  `env:"RESTORE,init"`
-	DBConnString  string `env:"DATABASE_DSN"`
+	Address       string `env:"ADDRESS" json:"address"`
+	StoreInterval *int   `env:"STORE_INTERVAL" json:"store_interval"`
+	FilePath      string `env:"FILE_STORAGE_PATH" json:"store_file"`
+	Restore       *bool  `env:"RESTORE,init" json:"restore"`
+	DBConnString  string `env:"DATABASE_DSN" json:"database_dsn"`
 	Key           string `env:"KEY"`
+	CryptoKey     string `env:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 func (c *Config) GetAddress() string {
@@ -32,6 +38,19 @@ func (c *Config) GetFilePath() (fp string, isDefault bool) {
 
 func GetConfig() *Config {
 	config := &Config{}
+	var configPath string
+	flag.StringVar(&configPath, "c", "", "config file")
+	flag.StringVar(&configPath, "config", "", "config file")
+	flag.Parse()
+	if configPath != "" {
+		data, err := readJSONFile(configPath)
+		if err == nil {
+			err = json.Unmarshal(data, &config)
+			if err == nil {
+				logger.Log.Fatal(err.Error())
+			}
+		}
+	}
 	setEnvParam(config)
 	setCmdParam(config)
 	return config
@@ -67,4 +86,17 @@ func setCmdParam(c *Config) {
 	if c.Key == "" {
 		c.Key = *key
 	}
+}
+
+func readJSONFile(filePath string) ([]byte, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("файл не найден: %s", filePath)
+	}
+
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при чтении файла: %w", err)
+	}
+
+	return data, nil
 }

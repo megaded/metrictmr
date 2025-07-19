@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -33,6 +34,7 @@ type Configer interface {
 	GetPoolInterval() int64
 	GetKey() string
 	GetRateLimit() int
+	GetCryptoKeyPath() string
 }
 
 type MetricSender interface {
@@ -42,6 +44,7 @@ type MetricSender interface {
 type Agent struct {
 	Config     Configer
 	httpClient *AgentHTTPClient
+	Protocol   string
 }
 
 type AgentHTTPClient struct {
@@ -59,7 +62,7 @@ func (c *AgentHTTPClient) Do(ctx context.Context, r *http.Request) error {
 
 func (a *Agent) StartSend(ctx context.Context) {
 	pollInterval := a.Config.GetPoolInterval()
-	addr := fmt.Sprintf("http://%s", a.Config.GetAddress())
+	addr := fmt.Sprintf("%s://%s", a.Protocol, a.Config.GetAddress())
 	key := a.Config.GetKey()
 	rateLimit := a.Config.GetRateLimit()
 	mch := make(chan collector.Metric, rateLimit)
@@ -105,8 +108,38 @@ func (a *Agent) StartSend(ctx context.Context) {
 func CreateAgent() MetricSender {
 	a := &Agent{}
 	a.Config = config.GetConfig()
+
 	a.httpClient = &AgentHTTPClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
+	protocol := "http"
+	if a.Config.GetCryptoKeyPath() != "" {
+		protocol = "https"
+		tlsConfig, err := createTLSConfig()
+		if err != nil {
+			logger.Log.Error(err.Error())
+			panic(err)
+		}
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+		a.httpClient.httpClient.Transport = transport
+	}
+	a.Protocol = protocol
 	return a
+}
+
+func createTLSConfig() (*tls.Config, error) {
+	return &tls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS12,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+	}, nil
 }
 
 func worker(ctx context.Context, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) error {
