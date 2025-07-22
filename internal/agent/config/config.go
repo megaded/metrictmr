@@ -1,9 +1,13 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
+	"os"
 
 	"github.com/caarlos0/env"
+	"github.com/megaded/metrictmr/internal/logger"
 )
 
 const (
@@ -13,11 +17,12 @@ const (
 )
 
 type Config struct {
-	Address        string `env:"ADDRESS"`
-	ReportInterval int64  `env:"REPORT_INTERVAL"`
-	PollInterval   int64  `env:"POLL_INTERVAL"`
+	Address        string `env:"ADDRESS" json:"address"`
+	ReportInterval int64  `env:"REPORT_INTERVAL" json:"report_interval"`
+	PollInterval   int64  `env:"POLL_INTERVAL" json:"poll_interval"`
 	Key            string `env:"KEY"`
 	RateLimit      *int   `env:"RATE_LIMIT"`
+	CryptoKey      string `evn:"CRYPTO_KEY" json:"crypto_key"`
 }
 
 func (c *Config) GetAddress() string {
@@ -40,8 +45,28 @@ func (c *Config) GetRateLimit() int {
 	return *c.RateLimit
 }
 
+func (c *Config) GetCryptoKeyPath() string {
+	return c.CryptoKey
+}
+
 func GetConfig() *Config {
 	config := &Config{}
+	var configPath string
+	flag.StringVar(&configPath, "c", "", "config file")
+	flag.StringVar(&configPath, "config", "", "config file")
+	flag.Parse()
+	if configPath != "" {
+		data, err := readJSONFile(configPath)
+		if err != nil {
+			logger.Log.Error(err.Error())
+			panic(err)
+		}
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			logger.Log.Error(err.Error())
+			panic(err)
+		}
+	}
 	setEnvParam(config)
 	setCmdParam(config)
 	return config
@@ -73,4 +98,17 @@ func setCmdParam(c *Config) {
 	if c.RateLimit == nil {
 		c.RateLimit = rateLimit
 	}
+}
+
+func readJSONFile(filePath string) ([]byte, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("файл не найден: %s", filePath)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при чтении файла: %w", err)
+	}
+
+	return data, nil
 }
