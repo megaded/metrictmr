@@ -25,6 +25,7 @@ type Config struct {
 	DBConnString  string `env:"DATABASE_DSN" json:"database_dsn"`
 	Key           string `env:"KEY"`
 	CryptoKey     string `env:"CRYPTO_KEY" json:"crypto_key"`
+	TrustedSubnet string `env:"TRUSTED_SUBNET" json:"trusted_subnet"`
 }
 
 func (c *Config) GetAddress() string {
@@ -69,6 +70,7 @@ func setCmdParam(c *Config) {
 	filePath := flag.String("f", defaultFilePath, "file path")
 	restore := flag.Bool("r", defaultRestore, "restore")
 	key := flag.String("k", "", "key")
+	net := flag.String("t", "", "trusted subnet")
 	flag.Parse()
 	if c.Address == "" {
 		c.Address = *address
@@ -87,6 +89,9 @@ func setCmdParam(c *Config) {
 	}
 	if c.Key == "" {
 		c.Key = *key
+	}
+	if c.TrustedSubnet == "" {
+		c.TrustedSubnet = *net
 	}
 }
 

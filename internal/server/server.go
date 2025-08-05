@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 
@@ -57,8 +58,15 @@ func CreateServer(ctx context.Context) (s Listener) {
 		server.Cert = cert
 		server.PublicKey = publicKey
 	}
+	middlewareList := []func(http.Handler) http.Handler{middleware.Logger, middleware.GzipMiddleware}
 	storage := storage.CreateStorage(ctx, *serverConfig)
-	server.Handler = handler.CreateRouter(storage, middleware.Logger, middleware.GzipMiddleware)
+	if serverConfig.TrustedSubnet != "" {
+		_, net, err := net.ParseCIDR(serverConfig.TrustedSubnet)
+		if err == nil {
+			middlewareList = append(middlewareList, middleware.TrustedSubnet(*net))
+		}
+	}
+	server.Handler = handler.CreateRouter(storage, middlewareList...)
 	server.Address = serverConfig.Address
 
 	return server

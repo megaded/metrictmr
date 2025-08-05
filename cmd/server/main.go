@@ -7,7 +7,7 @@ import (
 	"syscall"
 
 	"github.com/megaded/metrictmr/internal/logger"
-	"github.com/megaded/metrictmr/internal/server"
+	"github.com/megaded/metrictmr/internal/server/proto"
 	"go.uber.org/zap"
 )
 
@@ -30,6 +30,6 @@ func main() {
 		zap.String("date", buildDate),
 		zap.String("commit", buildCommit),
 	)
-	s := server.CreateServer(ctx)
+	s := proto.CreateServer(ctx)
 	s.Start(ctx)
 }
