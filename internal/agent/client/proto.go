@@ -18,7 +18,7 @@ import (
 type ProtoClient struct {
 	Config Configer
 	Client pb.MetricServiceClient
-	hostIp string
+	hostIP string
 }
 
 func CreateProtoClient() *ProtoClient {
@@ -31,7 +31,7 @@ func CreateProtoClient() *ProtoClient {
 	defer conn.Close()
 	ip, err := getLocalIP()
 	if err != nil {
-		pClient.hostIp = ip.String()
+		pClient.hostIP = ip.String()
 	}
 	pClient.Client = pb.NewMetricServiceClient(conn)
 	return &pClient
@@ -47,7 +47,7 @@ func (p *ProtoClient) StartSend(ctx context.Context) {
 
 	for w := 0; w <= rateLimit; w++ {
 		group.Go(func() error {
-			return protoWorker(ctxCancel, addr, p.hostIp, p.Client, mch)
+			return protoWorker(ctxCancel, addr, p.hostIP, p.Client, mch)
 		})
 
 	}

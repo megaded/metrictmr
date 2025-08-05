@@ -99,7 +99,7 @@ func (a *Agent) StartSend(ctx context.Context) {
 	}
 }
 
-func CreateHttpClient() *Agent {
+func CreateHTTPClient() *Agent {
 	a := &Agent{}
 	a.Config = config.GetConfig()
 	ip, err := getLocalIP()
