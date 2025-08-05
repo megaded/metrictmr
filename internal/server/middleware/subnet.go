@@ -5,14 +5,14 @@ import (
 	"net/http"
 )
 
-const RealIp string = "X-Real-IP"
+const RealIP string = "X-Real-IP"
 
 func TrustedSubnet(subnet net.IPNet) func(h http.Handler) http.Handler {
 	fn := func(h http.Handler) http.Handler {
 		subNetFn := func(w http.ResponseWriter, r *http.Request) {
 			hw := w
 
-			realip := r.Header.Get(RealIp)
+			realip := r.Header.Get(RealIP)
 			if realip == "" {
 				hw.WriteHeader(http.StatusForbidden)
 				return
