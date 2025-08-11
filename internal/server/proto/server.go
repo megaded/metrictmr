@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type MetricServer struct {
@@ -24,7 +23,7 @@ type MetricServer struct {
 	storage       storage.Storager
 }
 
-func (s *MetricServer) Update(ctx context.Context, req *pb.UpdateMetricsRequest) (*emptypb.Empty, error) {
+func (s *MetricServer) Update(ctx context.Context, req *pb.UpdateMetricsRequest) (*pb.UpdateMetricsResponse, error) {
 	if req != nil {
 		if len(req.Metrics) > 0 {
 			metrics := make([]data.Metric, 0, len(req.Metrics))
@@ -37,7 +36,8 @@ func (s *MetricServer) Update(ctx context.Context, req *pb.UpdateMetricsRequest)
 			}
 		}
 	}
-	return nil, nil
+	resp := new(pb.UpdateMetricsResponse)
+	return resp, nil
 }
 
 func (s *MetricServer) Start(ctx context.Context) {
@@ -59,7 +59,7 @@ func (s *MetricServer) Start(ctx context.Context) {
 	}()
 	pb.RegisterMetricServiceServer(server, &MetricServer{})
 	if err := server.Serve(listen); err != nil {
-		logger.Log.Fatal(err.Error())
+		panic(err)
 	}
 }
 

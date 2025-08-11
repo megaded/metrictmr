@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -27,7 +26,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MetricServiceClient interface {
-	Update(ctx context.Context, in *UpdateMetricsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Update(ctx context.Context, in *UpdateMetricsRequest, opts ...grpc.CallOption) (*UpdateMetricsResponse, error)
 }
 
 type metricServiceClient struct {
@@ -38,9 +37,9 @@ func NewMetricServiceClient(cc grpc.ClientConnInterface) MetricServiceClient {
 	return &metricServiceClient{cc}
 }
 
-func (c *metricServiceClient) Update(ctx context.Context, in *UpdateMetricsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *metricServiceClient) Update(ctx context.Context, in *UpdateMetricsRequest, opts ...grpc.CallOption) (*UpdateMetricsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(UpdateMetricsResponse)
 	err := c.cc.Invoke(ctx, MetricService_Update_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -52,7 +51,7 @@ func (c *metricServiceClient) Update(ctx context.Context, in *UpdateMetricsReque
 // All implementations must embed UnimplementedMetricServiceServer
 // for forward compatibility.
 type MetricServiceServer interface {
-	Update(context.Context, *UpdateMetricsRequest) (*emptypb.Empty, error)
+	Update(context.Context, *UpdateMetricsRequest) (*UpdateMetricsResponse, error)
 	mustEmbedUnimplementedMetricServiceServer()
 }
 
@@ -63,7 +62,7 @@ type MetricServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMetricServiceServer struct{}
 
-func (UnimplementedMetricServiceServer) Update(context.Context, *UpdateMetricsRequest) (*emptypb.Empty, error) {
+func (UnimplementedMetricServiceServer) Update(context.Context, *UpdateMetricsRequest) (*UpdateMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
 }
 func (UnimplementedMetricServiceServer) mustEmbedUnimplementedMetricServiceServer() {}
