@@ -31,6 +31,6 @@ func main() {
 		zap.String("date", buildDate),
 		zap.String("commit", buildCommit),
 	)
-	a := agent.CreateAgent()
+	a := agent.GetMetricSender()
 	a.StartSend(ctx)
 }

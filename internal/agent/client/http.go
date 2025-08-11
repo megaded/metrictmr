@@ -1,4 +1,4 @@
-package agent
+package client
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -37,14 +38,11 @@ type Configer interface {
 	GetCryptoKeyPath() string
 }
 
-type MetricSender interface {
-	StartSend(ctx context.Context)
-}
-
 type Agent struct {
 	Config     Configer
 	httpClient *AgentHTTPClient
 	Protocol   string
+	hostIP     string
 }
 
 type AgentHTTPClient struct {
@@ -72,7 +70,7 @@ func (a *Agent) StartSend(ctx context.Context) {
 
 	for w := 0; w <= rateLimit; w++ {
 		group.Go(func() error {
-			return worker(ctxCancel, addr, key, a.httpClient, mch)
+			return httpWorker(ctxCancel, addr, key, a.httpClient, a.hostIP, mch)
 		})
 
 	}
@@ -96,19 +94,18 @@ func (a *Agent) StartSend(ctx context.Context) {
 		}
 	})
 
-	collectMetrics := func(ct context.Context, mch chan collector.Metric) {
-
-	}
-	go collectMetrics(ctxCancel, mch)
 	if err := group.Wait(); err != nil {
 		logger.Log.Error("Agent error", zap.Error(err))
 	}
 }
 
-func CreateAgent() MetricSender {
+func CreateHTTPClient() *Agent {
 	a := &Agent{}
 	a.Config = config.GetConfig()
-
+	ip, err := getLocalIP()
+	if err != nil {
+		a.hostIP = ip.String()
+	}
 	a.httpClient = &AgentHTTPClient{httpClient: &http.Client{Timeout: time.Second * 5}, retry: retry.NewRetry(1, 2, 3)}
 	protocol := "http"
 	if a.Config.GetCryptoKeyPath() != "" {
@@ -127,6 +124,18 @@ func CreateAgent() MetricSender {
 	return a
 }
 
+func getLocalIP() (net.IP, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	localAddress := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddress.IP, nil
+}
+
 func createTLSConfig() (*tls.Config, error) {
 	return &tls.Config{
 		InsecureSkipVerify: true,
@@ -142,7 +151,7 @@ func createTLSConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func worker(ctx context.Context, addr string, key string, client *AgentHTTPClient, jobs <-chan collector.Metric) error {
+func httpWorker(ctx context.Context, addr string, key string, client *AgentHTTPClient, ip string, jobs <-chan collector.Metric) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -151,14 +160,14 @@ func worker(ctx context.Context, addr string, key string, client *AgentHTTPClien
 			if !ok {
 				return nil
 			}
-			if err := sendBulkMetric(ctx, m, addr, key, client); err != nil {
+			if err := sendBulkMetric(ctx, m, addr, key, client, ip); err != nil {
 				logger.Log.Warn("send metric error", zap.Error(err))
 			}
 		}
 	}
 }
 
-func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, key string, client *AgentHTTPClient) error {
+func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, key string, client *AgentHTTPClient, ip string) error {
 	if len(c.GaugeMetrics) == 0 && len(c.CounterMetrics) == 0 {
 		logger.Log.Info("Отправка метрик. Метрик нет")
 		return nil
@@ -170,10 +179,10 @@ func sendBulkMetric(ctx context.Context, c collector.Metric, addr string, key st
 	for _, v := range c.CounterMetrics {
 		d = append(d, data.Metric{ID: string(v.Name), MType: data.MTypeCounter, Delta: &v.Value})
 	}
-	return sendMetricJSON(ctx, client, addr, key, d...)
+	return sendMetricJSON(ctx, client, addr, key, ip, d...)
 }
 
-func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, key string, metric ...data.Metric) error {
+func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, key string, ip string, metric ...data.Metric) error {
 	data, err := json.Marshal(metric)
 	if err != nil {
 		logger.Log.Error(err.Error())
@@ -195,15 +204,19 @@ func sendMetricJSON(ctx context.Context, client *AgentHTTPClient, addr string, k
 	}
 	gzipWriter.Close()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		logger.Log.Info(err.Error())
+		return err
+	}
 	if key != "" {
 		h := hmac.New(sha256.New, []byte(key))
 		h.Write(data)
 		hash := hex.EncodeToString(h.Sum(nil))
 		req.Header.Set(hashHeader, hash)
 	}
-	if err != nil {
-		logger.Log.Info(err.Error())
-		return err
+
+	if ip != "" {
+		req.Header.Set("X-Real-IP", ip)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
